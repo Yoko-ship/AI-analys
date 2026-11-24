@@ -76,6 +76,30 @@ def _comprehensive_income_inputs(rows):
     return parts
 
 
+def _filed_pair(rows, form, fields, *, per_maturity=False):
+    from .ifrs import metric
+
+    parts = []
+    for field in fields:
+        candidates = [r for r in rows if r.get('source_form') == form and r.get('metric_id') == field]
+        if len(candidates) != 1:
+            return []
+        part = candidates[0]
+        caption = metric(part.get('raw_label') or '', form)
+        # The reviewed balance-sheet row can carry maturity from its section heading.
+        if caption != field and not (per_maturity and caption == 'lease_liabilities'):
+            return []
+        if part.get('raw_value') is None:
+            return []
+        parts.append(part)
+    first, second = parts
+    if (first.get('unit') != 'UZS_thousand' or not all(first.get(k) for k in
+            ('currency', 'unit_scale', 'source_url', 'source_version')) or
+            any(first.get(k) != second.get(k) for k in ('unit', 'currency', 'unit_scale', 'source_url', 'fx'))):
+        return []
+    return parts
+
+
 def enrich(observations, *, template=None):
     result = list(observations)
     groups = defaultdict(list)
@@ -97,6 +121,21 @@ def enrich(observations, *, template=None):
                            'value': str(sum(Decimal(p['value']) * coefficient for p, (_, coefficient) in zip(parts, terms))),
                            'components': parts, 'formula': formula, 'origin': 'UZStock_calculated',
                            'unit': unit, 'quality': 'warn' if any(p['quality'] == 'warn' for p in parts) else 'valid'})
+
+        if standard == 'MSFO' and 'BS' in forms and rows[0].get('kind') == 'stock':
+            fields = ('lease_liabilities_noncurrent', 'lease_liabilities_current')
+            parts = _filed_pair(rows, 'BS', fields, per_maturity=True)
+            if parts:
+                add('lease_liabilities', 'Lease liabilities', [(field, 1) for field in fields],
+                    'non-current lease liabilities + current lease liabilities', inputs=parts)
+
+        if standard == 'MSFO' and 'CF' in forms and rows[0].get('kind') == 'flow' and rows[0].get('scope') == 'consolidated':
+            fields = ('dividends_paid_parent', 'dividends_paid_nci')
+            parts = _filed_pair(rows, 'CF', fields)
+            if parts and all(r.get('value') is not None and Decimal(r['value']) <= 0 for r in parts):
+                add('dividends_paid', 'Cash dividends paid', [(field, 1) for field in fields],
+                    'cash dividends paid to owners of the parent + cash dividends paid to non-controlling interests',
+                    inputs=parts)
 
         if standard == 'MSFO' and 'PL' in forms:
             filed_oci = any(r.get('metric_id') in {'oci', 'other_comprehensive_income'} for r in rows)

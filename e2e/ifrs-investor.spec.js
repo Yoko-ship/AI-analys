@@ -273,3 +273,19 @@ test('UZINP shows consolidated other comprehensive income with both source total
   await expect(passport).toContainText('79,104,448');
   await expect(passport).toContainText('82,691,849');
 });
+
+test('URTS shows the lease maturity total and cash dividends paid to both ownership groups', async ({page}) => {
+  await openSignedFiling(page, 'URTS', 'industry', 'urts_2025_lease_and_dividends.json');
+  const panel = page.getByTestId('ifrs-investor');
+  for (const [tab, field, amount, component] of [
+    ['BS Balance', 'leaseLiabilities', '5.65', '4,546,608'],
+    ['CF Cash flows', 'dividendsPaid', /[-−]142\.04/, '153,202'],
+  ]) {
+    await panel.getByRole('tab', {name:tab, exact:true}).click();
+    const cell = panel.locator(`tr[data-field="${field}"]`).getByRole('button', {name:/2025/});
+    await expect(cell).toHaveText(amount);
+    await cell.click();
+    await expect(page.getByRole('dialog')).toContainText(component);
+    await page.keyboard.press('Escape');
+  }
+});

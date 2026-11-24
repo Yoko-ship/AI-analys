@@ -967,6 +967,11 @@
                 "BS",
                 null,
                 "lease_liabilities"
+              ],
+              [
+                "DERIVED",
+                null,
+                "lease_liabilities"
               ]
             ],
             "field_id": "bank_ifrs_lease"
@@ -3296,6 +3301,11 @@
                 "BS",
                 null,
                 "lease_liabilities"
+              ],
+              [
+                "DERIVED",
+                null,
+                "lease_liabilities"
               ]
             ],
             "field_id": "lease_liab"
@@ -3390,6 +3400,11 @@
             "selectors": [
               [
                 "CF",
+                null,
+                "dividends_paid"
+              ],
+              [
+                "DERIVED",
                 null,
                 "dividends_paid"
               ]
@@ -3645,6 +3660,11 @@
             "selectors": [
               [
                 "BS",
+                null,
+                "lease_liabilities"
+              ],
+              [
+                "DERIVED",
                 null,
                 "lease_liabilities"
               ]
@@ -4576,6 +4596,11 @@
             "selectors": [
               [
                 "CF",
+                null,
+                "dividends_paid"
+              ],
+              [
+                "DERIVED",
                 null,
                 "dividends_paid"
               ]

@@ -412,3 +412,47 @@ def test_tenge_bank_2025_conflicting_printed_oci_subtotal_keeps_its_review_statu
                                   ('oci', None, 'Other comprehensive loss for the year')]]
     (oci,) = [r for r in derived.enrich(rows) if r['metric_id'] == 'oci']
     assert oci['value'] is None and oci['reason'] == 'CONFLICTING_SOURCE_VALUES'
+
+
+@pytest.fixture
+def urts_lease_and_dividends():
+    return json.loads(Path('tests/fixtures/financial_columns/urts_2025_lease_and_dividends.json').read_text())
+
+
+def test_urts_sums_lease_maturities_and_cash_dividends_to_parent_and_nci(urts_lease_and_dividends):
+    from financial_columns import derived, investor, matrix, presentation
+    table = dict(matrix.build(derived.enrich(urts_lease_and_dividends), mode='annual'),
+                 standard='MSFO', template='industry', ratios=[])
+    template = presentation.project(table)['rows']
+    statements = investor.project(table)['statements']
+    for field, display, section, total, amounts in [
+        ('leaseLiabilities', 'lease_liab', 'bs', '5645128', ['4546608', '1098520']),
+        ('dividendsPaid', 'general_ifrs_divpaid', 'cf', '-142037351', ['-141884149', '-153202']),
+    ]:
+        row = next(r for r in template if r['display_field'] == display)
+        c = row['cells']['2025']
+        assert c['value'] == total
+        assert [p['raw_value'] for p in c['components']] == amounts
+        assert all(p['source_url'] == c['source_url'] for p in c['components'])
+        assert next(r for g in statements[section] for r in g['rows'] if r['field'] == field)['cells']['2025'] == c
+
+
+@pytest.mark.parametrize('change', [
+    {'source_form':'Equity'}, {'source_version':'other'}, {'scope':'separate'}, {'currency':'USD'},
+    {'unit_scale':'1000000'}, {'quality':'blocked'}, {'raw_value':None}, {'period_end':'2024-12-31'},
+    {'source_url':'https://openinfo.uz/other.pdf'}, {'raw_label':'Lease payments'},
+])
+def test_split_total_requires_comparable_filed_parts(urts_lease_and_dividends, change):
+    from financial_columns import derived
+    for row in urts_lease_and_dividends[1::2]:
+        row.update(change)
+    assert not any(r['source_form']=='DERIVED' and r['metric_id'] in ('lease_liabilities', 'dividends_paid')
+                   for r in derived.enrich(urts_lease_and_dividends))
+
+
+def test_dividends_on_ordinary_shares_alone_do_not_establish_all_cash_dividends(urts_lease_and_dividends):
+    from financial_columns import investor, matrix
+    r = dict(urts_lease_and_dividends[-1], metric_id='dividends_paid',
+             raw_label='Дивиденды, выплаченные по обыкновенным акциям')
+    table = dict(matrix.build([r], mode='annual'), standard='MSFO', template='industry', ratios=[])
+    assert investor.field_cells(table, 'dividendsPaid', 'cf')['2025']['value'] is None

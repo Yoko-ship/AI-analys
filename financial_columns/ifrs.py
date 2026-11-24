@@ -138,6 +138,14 @@ def statement_covers(pages):
     return result
 
 
+_LEASE_SECTIONS = {
+    'currentliabilities': 'lease_liabilities_current',
+    'краткосрочныеобязательства': 'lease_liabilities_current',
+    'noncurrentliabilities': 'lease_liabilities_noncurrent',
+    'долгосрочныеобязательства': 'lease_liabilities_noncurrent',
+}
+
+
 def extract(pages, *, page_count, covers=None):
     from financial_ingestion import statements as parser
     covers = statement_covers(pages) if covers is None else covers
@@ -168,6 +176,7 @@ def extract(pages, *, page_count, covers=None):
         offset = 0 if form == 'Notes' else first
         if form == 'Notes':
             cols = []
+        lease_section = _LEASE_SECTIONS.get(key(lines[offset - 1])) if form == 'BS' and offset else None
         for row_number, line in enumerate(lines[offset:], offset + 1):
             if form == 'Notes':
                 # A running report date is not the date of each Notes table.
@@ -181,6 +190,8 @@ def extract(pages, *, page_count, covers=None):
                     continue
             split = split_row(line)
             if not split:
+                if form == 'BS' and line.strip():
+                    lease_section = _LEASE_SECTIONS.get(key(line))
                 if form == 'Notes' and table_started and line.strip():
                     cols = []
                 continue
@@ -191,6 +202,11 @@ def extract(pages, *, page_count, covers=None):
             label, tail = split
             values = parser.cells(tail, len(cols))
             metric_id = metric(label, form)
+            if form == 'BS' and lease_section:
+                if metric_id == 'lease_liabilities':
+                    metric_id = lease_section
+                elif key(label).startswith(('total', 'итого', 'всего')):
+                    lease_section = None
             combined_eps = False
             if form == 'PL' and metric_id is None:
                 previous = lines[row_number - 2].strip() if row_number > 1 else ''

@@ -419,3 +419,21 @@ def test_reviewed_statement_captions_keep_their_original_measure(issuer, form, f
     if filed and filed != canonical:
         assert result['source_metric_id'] == filed
     assert row['metric_id'] == filed
+
+
+def test_urts_lease_caption_inherits_the_current_or_noncurrent_balance_sheet_section():
+    source = """Консолидированный отчет о финансовом положении
+(в тысячах узбекских сумов)
+31 декабря 2025       31 декабря 2024
+Долгосрочные обязательства
+Обязательства по аренде   4 546 608   3 019 521
+Итого долгосрочные обязательства   4 546 608   3 019 521
+Краткосрочные обязательства
+Торговая кредиторская задолженность   6 572 662   5 572 035
+Обязательства по аренде   1 098 520   1 189 303
+Итого краткосрочные обязательства   5 058 592 477   3 710 994 958
+Обязательства по аренде   5 645 128   4 208 824"""
+    rows = ifrs.extract({1:source}, page_count=1)['rows']
+    assert [(r['metric_id'],r['raw_value']) for r in rows if r['column']==0 and r['raw_label']=='Обязательства по аренде'] == [
+        ('lease_liabilities_noncurrent','4546608'), ('lease_liabilities_current','1098520'),
+        ('lease_liabilities','5645128')]

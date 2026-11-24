@@ -30,7 +30,9 @@ nci|Non-controlling interests|Неконтролирующая доля учас
 total_equity|Total equity|Итого капитал|Итого собственный капитал|Итого собственного капитала|Итого собственного капитал
 borrowings_short|Short-term borrowings|Краткосрочные заимствования|Краткосрочные заемные средства|Кредиты и займы (краткосрочные обязательства)
 borrowings_long|Long-term borrowings|Долгосрочные заимствования|Долгосрочные заемные средства|Долгосрочные кредиты и займы|Долгосрочные займы|Кредиты и займы (долгосрочные обязательства)
-lease_liabilities|Lease liabilities|Обязательства по аренде
+lease_liabilities|Lease liabilities|Lease liability|Обязательства по аренде
+lease_liabilities_noncurrent|Long term lease liabilities|Non-current lease liabilities|Долгосрочные обязательства по аренде
+lease_liabilities_current|Short term lease liabilities|Current lease liabilities|Краткосрочные обязательства по аренде
 trade_payables|Trade payables|Торговая кредиторская задолженность
 contract_liabilities|Contract liabilities|Обязательства по договорам
 provisions|Provisions|Резервы
@@ -120,7 +122,9 @@ interest_received|Interest received|Проценты полученные
 interest_paid|Interest paid|Проценты уплаченные
 income_tax_paid|Income tax paid|Налог на прибыль уплаченный
 dividends_received|Dividends received|Дивиденды полученные
-dividends_paid|Dividends paid|Дивиденды выплаченные
+dividends_paid|Dividends paid|Dividend paid|The dividends paid|Дивиденды выплаченные|Выплаченные дивиденды|Дивиденды уплаченные|Дивиденды оплаченные|Выплата дивидендов|Выплаты дивидендов
+dividends_paid_parent|Dividends paid to owners of the parent|Дивиденды, уплаченные акционерам
+dividends_paid_nci|Dividends paid to non-controlling interests|Дивиденды, уплаченные неконтролирующим акционерам
 purchase_ppe|Purchase of property, plant and equipment|Приобретение основных средств
 purchase_intangibles|Purchase of intangible assets|Приобретение нематериальных активов
 proceeds_disposal_assets|Proceeds from sale of property, plant and equipment|Поступления от продажи основных средств

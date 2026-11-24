@@ -1,0 +1,182 @@
+[
+  {
+    "issuer_id": "717",
+    "standard": "MSFO",
+    "scope": "consolidated",
+    "period_end": "2025-12-31",
+    "period_start": "2025-12-31",
+    "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+    "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+    "published_at": null,
+    "received_at": "2026-09-19T06:45:50+00:00",
+    "role": "PRIMARY",
+    "audit_status": "unknown",
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "fx": null,
+    "column": 0,
+    "kind": "stock",
+    "metric_id": "lease_liabilities_noncurrent",
+    "page": 1,
+    "quality": "valid",
+    "raw_label": "Обязательства по аренде",
+    "raw_line": "Обязательства по аренде   4546608   3019521",
+    "raw_value": "4546608",
+    "source_code": null,
+    "source_form": "BS",
+    "statement_period_end": "2025-12-31",
+    "unit": "UZS_thousand",
+    "value": "4546608",
+    "reason": null,
+    "normalization": "raw × source scale × verified currency rate / display scale",
+    "aliases": [
+      "Обязательства по аренде"
+    ],
+    "sources": [
+      {
+        "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+        "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+        "page": 1,
+        "sheet": null,
+        "row": null,
+        "raw_label": "Обязательства по аренде"
+      }
+    ]
+  },
+  {
+    "issuer_id": "717",
+    "standard": "MSFO",
+    "scope": "consolidated",
+    "period_end": "2025-12-31",
+    "period_start": "2025-12-31",
+    "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+    "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+    "published_at": null,
+    "received_at": "2026-09-19T06:45:50+00:00",
+    "role": "PRIMARY",
+    "audit_status": "unknown",
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "fx": null,
+    "column": 0,
+    "kind": "stock",
+    "metric_id": "lease_liabilities_current",
+    "page": 1,
+    "quality": "valid",
+    "raw_label": "Обязательства по аренде",
+    "raw_line": "Обязательства по аренде   1098520   1189303",
+    "raw_value": "1098520",
+    "source_code": null,
+    "source_form": "BS",
+    "statement_period_end": "2025-12-31",
+    "unit": "UZS_thousand",
+    "value": "1098520",
+    "reason": null,
+    "normalization": "raw × source scale × verified currency rate / display scale",
+    "aliases": [
+      "Обязательства по аренде"
+    ],
+    "sources": [
+      {
+        "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+        "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+        "page": 1,
+        "sheet": null,
+        "row": null,
+        "raw_label": "Обязательства по аренде"
+      }
+    ]
+  },
+  {
+    "issuer_id": "717",
+    "standard": "MSFO",
+    "scope": "consolidated",
+    "period_end": "2025-12-31",
+    "period_start": "2025-01-01",
+    "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+    "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+    "published_at": null,
+    "received_at": "2026-09-19T06:45:50+00:00",
+    "role": "PRIMARY",
+    "audit_status": "unknown",
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "fx": null,
+    "column": 0,
+    "kind": "flow",
+    "metric_id": "dividends_paid_parent",
+    "page": 4,
+    "quality": "valid",
+    "raw_label": "Дивиденды, уплаченные акционерам",
+    "raw_line": "Дивиденды, уплаченные акционерам   -141884149   -204833746",
+    "raw_value": "-141884149",
+    "source_code": null,
+    "source_form": "CF",
+    "statement_period_end": "2025-12-31",
+    "unit": "UZS_thousand",
+    "value": "-141884149",
+    "reason": null,
+    "normalization": "raw × source scale × verified currency rate / display scale",
+    "aliases": [
+      "Дивиденды, уплаченные акционерам"
+    ],
+    "sources": [
+      {
+        "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+        "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+        "page": 4,
+        "sheet": null,
+        "row": null,
+        "raw_label": "Дивиденды, уплаченные акционерам"
+      }
+    ]
+  },
+  {
+    "issuer_id": "717",
+    "standard": "MSFO",
+    "scope": "consolidated",
+    "period_end": "2025-12-31",
+    "period_start": "2025-01-01",
+    "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+    "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+    "published_at": null,
+    "received_at": "2026-09-19T06:45:50+00:00",
+    "role": "PRIMARY",
+    "audit_status": "unknown",
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "fx": null,
+    "column": 0,
+    "kind": "flow",
+    "metric_id": "dividends_paid_nci",
+    "page": 4,
+    "quality": "valid",
+    "raw_label": "Дивиденды, уплаченные неконтролирующим акционерам",
+    "raw_line": "Дивиденды, уплаченные неконтролирующим акционерам   -153202   -250199",
+    "raw_value": "-153202",
+    "source_code": null,
+    "source_form": "CF",
+    "statement_period_end": "2025-12-31",
+    "unit": "UZS_thousand",
+    "value": "-153202",
+    "reason": null,
+    "normalization": "raw × source scale × verified currency rate / display scale",
+    "aliases": [
+      "Дивиденды, уплаченные неконтролирующим акционерам"
+    ],
+    "sources": [
+      {
+        "source_version": "1487a32f9a8a3214492333157f33fb056d5f71bafdfd173b76e618908aa29998",
+        "source_url": "https://openinfo.uz/media/int_report/233831ad-a5b0-4d12-9e0c-9f7a1f3c5adc.pdf",
+        "page": 4,
+        "sheet": null,
+        "row": null,
+        "raw_label": "Дивиденды, уплаченные неконтролирующим акционерам"
+      }
+    ]
+  }
+]

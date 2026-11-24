@@ -174,6 +174,11 @@
             "label": "Прочие обязательства"
           },
           {
+            "id": "leaseLiabilities",
+            "label": "Арендные обязательства",
+            "available_only": true
+          },
+          {
             "id": "liabilities",
             "label": "Всего обязательства",
             "total": true
@@ -230,6 +235,11 @@
       {
         "g": "Финансовая деятельность",
         "rows": [
+          {
+            "id": "dividendsPaid",
+            "label": "Выплаченные денежные дивиденды",
+            "available_only": true
+          },
           {
             "id": "cff",
             "label": "Чистые деньги от финансовой деятельности",
@@ -445,6 +455,11 @@
             "label": "Прочие обязательства"
           },
           {
+            "id": "leaseLiabilities",
+            "label": "Арендные обязательства",
+            "available_only": true
+          },
+          {
             "id": "liabilities",
             "label": "Всего обязательства",
             "total": true
@@ -501,6 +516,11 @@
       {
         "g": "Финансовая деятельность",
         "rows": [
+          {
+            "id": "dividendsPaid",
+            "label": "Выплаченные денежные дивиденды",
+            "available_only": true
+          },
           {
             "id": "cff",
             "label": "Чистые деньги от финансовой деятельности",
@@ -787,6 +807,11 @@
             "total": true
           },
           {
+            "id": "leaseLiabilities",
+            "label": "Арендные обязательства",
+            "available_only": true
+          },
+          {
             "id": "liabilities",
             "label": "Итого обязательства",
             "grand": true
@@ -843,6 +868,11 @@
       {
         "g": "Финансовая деятельность",
         "rows": [
+          {
+            "id": "dividendsPaid",
+            "label": "Выплаченные денежные дивиденды",
+            "available_only": true
+          },
           {
             "id": "cff",
             "label": "Чистые деньги от финансовой деятельности",
@@ -1016,6 +1046,11 @@
         "g": "Чистые активы (NAV)",
         "rows": [
           {
+            "id": "leaseLiabilities",
+            "label": "Арендные обязательства",
+            "available_only": true
+          },
+          {
             "id": "liabilities",
             "label": "Всего обязательства"
           },
@@ -1076,6 +1111,11 @@
       {
         "g": "Финансовая деятельность",
         "rows": [
+          {
+            "id": "dividendsPaid",
+            "label": "Выплаченные денежные дивиденды",
+            "available_only": true
+          },
           {
             "id": "cff",
             "label": "Чистые деньги от финансовой деятельности",
@@ -1317,6 +1357,11 @@
             "label": "Прочие обязательства"
           },
           {
+            "id": "leaseLiabilities",
+            "label": "Арендные обязательства",
+            "available_only": true
+          },
+          {
             "id": "liabilities",
             "label": "Всего обязательства",
             "total": true
@@ -1373,6 +1418,11 @@
       {
         "g": "Финансовая деятельность",
         "rows": [
+          {
+            "id": "dividendsPaid",
+            "label": "Выплаченные денежные дивиденды",
+            "available_only": true
+          },
           {
             "id": "cff",
             "label": "Чистые деньги от финансовой деятельности",

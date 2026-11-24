@@ -54,6 +54,7 @@ METRICS = {
     'fundOtherAssets':'other_assets', 'nav':'nav', 'cfo':'cfo', 'capex':'capex',
     'otherInvest':'other_investing_cash_flows', 'cfi':'cfi', 'cff':'cff',
     'changeCash':'delta_cash', 'cashStart':'cash_begin', 'cashEnd':'cash_end',
+    'dividendsPaid':'dividends_paid', 'leaseLiabilities':'lease_liabilities',
     'equityOpen':'equity_open', 'dividends':'dividends_declared',
     'newShares':'share_issuance', 'otherEquity':'other_equity_changes',
 }
@@ -134,6 +135,11 @@ def field_cells(payload, field, statement, observations=()):
         # The matrix inserts an empty cell for a source row filed in another period.
         # Keep actual validation failures available for conflict checks.
         parts = [p for p in parts if p.get('reason') != 'SOURCE_VALUE_MISSING' or p.get('quality') != 'missing']
+        if field in {'dividendsPaid', 'leaseLiabilities'}:
+            from .ifrs import metric as caption_metric
+            # A class-specific payout or a single lease maturity cannot stand for the full amount.
+            parts = [p for p in parts if p.get('source_form') == 'DERIVED'
+                     or caption_metric(p.get('raw_label') or '', form) == metric]
         if cash_addbacks:
             filed = [r['cells'][column['key']] for r in cash_addbacks]
             parts = [p for p in filed if p.get('quality') != 'missing'] or parts
@@ -161,9 +167,13 @@ def project(payload, observations=()):
                 field = spec['id']
                 if spec.get('filed_only') and (FORM[statement], METRICS[field]) not in reported:
                     continue
+                cells = field_cells(payload, field, statement, observations)
+                if spec.get('available_only') and not any(c.get('value') is not None or c.get('quality') == 'blocked'
+                                                          for c in cells.values()):
+                    continue
                 rows.append({**spec, 'id':statement+':'+field, 'field':field, 'statement':statement,
                              'metric_id':METRICS[field], 'source_form':FORM[statement],
                              'kind':'stock' if statement=='bs' else 'flow', 'unit':'UZS_thousand',
-                             'cells':field_cells(payload,field,statement,observations)})
+                             'cells':cells})
             statements[statement].append({'label':group['g'], 'rows':rows})
     return {**payload, 'presentation':'investor', 'display_template':sector, 'statements':statements}
