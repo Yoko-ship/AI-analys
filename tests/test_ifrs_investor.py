@@ -201,3 +201,26 @@ def test_investor_ratio_sets_are_sector_specific_and_missing_is_not_zero():
     source[0]['scope']='separate'
     conflict={r['metric_id']:r['cells']['2025'] for r in calculate(source,[],columns,'general')}
     assert conflict['operating_margin']['value'] is None
+
+
+def test_partial_import_preserves_unrelated_audited_fund_metrics(monkeypatch, tmp_path):
+    from financial_columns import service
+    from financial_columns.investor_sources import audited_fund
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    cash = next(r for r in audited_fund('UZNF', '1059', 'separate') if r['metric_id'] == 'cash')
+    imported = dict(cash, source_version='reviewed-import', source_code=None)
+    opening = dict(cash, metric_id='cash_begin', source_form='CF', source_code=None,
+                   statement_period_end='2026-06-30', source_version='interim-opening')
+    monkeypatch.setattr(service.publication, 'snapshots', lambda *args, **kwargs: [])
+    monkeypatch.setattr(service.publication, 'scopes', lambda ticker: ['separate'])
+    monkeypatch.setattr(service.observations, 'ifrs', lambda *args, **kwargs: [opening, imported])
+    result = service.load('UZNF', form='MSFO', view='investor', scope='separate', include_ratios=False)
+    annual = next(c for c in result['columns'] if c['basis'] == 'annual')
+    assert annual['label'] == '24.12.2024–31.12.2025'
+    relevant = {r['metric_id']: r['cells']['2025'] for r in result['rows']
+                if r['metric_id'] in {'net_income', 'cash'}}
+    assert relevant['net_income']['value'] == '1403150000'
+    assert relevant['net_income']['page'] == 8
+    assert relevant['cash']['source_version'] == 'reviewed-import'
+    assert sum(r['metric_id'] == 'cash' for r in result['rows']) == 1

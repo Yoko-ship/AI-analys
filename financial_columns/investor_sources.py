@@ -5,7 +5,13 @@ from decimal import Decimal
 from pathlib import Path
 
 
-def audited_fund(ticker, issuer_id, scope):
+def _observation_key(row):
+    # A stock belongs to one date. A flow covers the full interval on the filing.
+    start = row.get('period_start') if row['kind'] != 'stock' else None
+    return row['source_form'], row.get('metric_id'), row['kind'], start, row['period_end']
+
+
+def audited_fund(ticker, issuer_id, scope, *, imported=()):
     # These records are already reviewed by the sector-report pipeline. They
     # explicitly cover separate accounts; never relabel them consolidated.
     if scope != 'separate':
@@ -43,4 +49,7 @@ def audited_fund(ticker, issuer_id, scope):
                 page=int(page[1]) if page else None,audit_status='audited',
                 normalization='audited million UZS × 1000 = thousand UZS; tax shown as expense',
                 published_at=record['publication_date'],role='PRIMARY'))
-    return result
+    if not result or not imported:
+        return result
+    imported_keys = {_observation_key(row) for row in imported}
+    return [row for row in result if _observation_key(row) not in imported_keys]

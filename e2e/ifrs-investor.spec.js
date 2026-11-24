@@ -182,3 +182,30 @@ with tempfile.TemporaryDirectory() as scratch:
   await assets.click();
   await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'})).toHaveAttribute('href',source);
 });
+
+test('UZNF retains its audited first year when an interim filing reports opening cash', async ({page}) => {
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const filing = JSON.parse(execFileSync(python, ['-c', `
+import json, os, tempfile
+from unittest.mock import patch
+from financial_columns import service
+from financial_columns.investor_sources import audited_fund
+with tempfile.TemporaryDirectory() as scratch:
+    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
+    cash = next(r for r in audited_fund('UZNF', '1059', 'separate') if r['metric_id'] == 'cash')
+    opening = dict(cash, metric_id='cash_begin', source_code=None, source_form='CF', statement_period_end='2026-09-30',
+                   raw_label='Cash and cash equivalents at the beginning of the period')
+    with patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['separate']), patch.object(service.observations, 'ifrs', return_value=[opening]):
+        print(json.dumps(service.load('UZNF', form='MSFO', view='investor', scope='separate', include_ratios=False)))
+`], {encoding:'utf8'}));
+  await setup(page);
+  await page.route('**/api/company/UZNF/financials/columns?**', route => route.fulfill({json:filing}));
+  await page.goto('/company/UZNF?tab=financials&standard=MSFO');
+  const panel = page.getByTestId('ifrs-investor');
+  await panel.getByRole('tab',{name:'PL Profit or loss',exact:true}).click();
+  await expect(panel.locator('thead')).toContainText('24.12.2024–31.12.2025');
+  const profit = panel.locator('tr[data-field="profit"]').getByRole('button');
+  await profit.click();
+  await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'})).toHaveAttribute(
+    'href', 'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf');
+});

@@ -236,8 +236,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         source_rows = observations.ifrs(snapshots, canonical_metrics=view != 'full')
         if view == 'investor':
             from .investor_sources import audited_fund
-            imported_ends = {r['period_end'] for r in source_rows}
-            source_rows += [r for r in audited_fund(ticker, issuer_id, scope) if r['period_end'] not in imported_ends]
+            source_rows.extend(audited_fund(ticker, issuer_id, scope, imported=source_rows))
             if source_rows and scope not in available_scopes:
                 available_scopes = [*available_scopes, scope]
         if snapshots:
