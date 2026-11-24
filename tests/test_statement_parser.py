@@ -622,3 +622,27 @@ def test_abkz_dated_consolidated_cover_identifies_its_untitled_scope():
         if expected == 'consolidated':
             assert all(r['scope'] == expected for v in years for r in v['source_rows'])
             assert '4' in years[0]['page_evidence']
+
+
+@pytest.mark.parametrize(('caption', 'tax', 'expected'), [
+    ('Прибыль и совокупный доход за год', '(1 308)', '42215'),
+    ('Прибыль и совокупный доход за год', '(2 308)', None),
+    ('Итого совокупный доход за год', '(1 308)', None),
+])
+def test_asia_alliance_bank_2021_joint_profit_caption_requires_income_reconciliation(caption, tax, expected):
+    # Openinfo 2311, signed consolidated income statement, PDF page 8.
+    pages = {
+        7: 'МСФО\nКонсолидированный отчет о финансовом положении\n'
+           'в миллионах узбекских сум\n31 декабря 2021    31 декабря 2020\n'
+           'Итого активы    3 177 046    2 895 850',
+        8: 'Консолидированный отчет о прибылях или убытках и прочем совокупном доходе\n'
+           'за год, закончившийся 31 декабря 2021 года\nв миллионах узбекских сум\n'
+           '2021 год    2020 год\nПрибыль до расходов по налогу на прибыль    43 523    47 697\n'
+           f'Расходы по налогу на прибыль    {tax}    (10 131)\n{caption}    42 215    37 566',
+    }
+    primary, comparative = parse(pages)
+    actual = primary['figures'].get('net_income', {})
+    assert actual.get('raw_value') == expected
+    if expected:
+        assert (actual['page'], actual['raw_label'], actual['column_year']) == (8, caption, 2021)
+        assert comparative['figures']['net_income']['raw_value'] == '37566'

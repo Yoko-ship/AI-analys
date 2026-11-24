@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v15'
+VERSION = 'statement-columns-v16'
 
 
 def compact(value):
@@ -30,6 +30,7 @@ LABELS = {
     'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы|операционнаяприбыль|прибыльотоперационнойдеятельности|операционнаяприбыльили\(убыток\))',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
     'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)|чистаяприбыль(?:\(убыток\))?)',
+    '_profit_and_comprehensive_income': r'(?:прибыльисовокупныйдоходза(?:год|период)|profitand(?:total)?comprehensiveincomeforthe(?:year|period))',
     '_pretax': r'(?:налогооблагаемаяприбыль\(убыток\)|profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
     '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
     '_tax': r'(?:incometax(?:expense|benefit)?|incometax\(expense\)/benefit|\(расход\)/экономияпоналогунаприбыль|расхо[дл]ыпоналогунаприбыль|налогнаприбыль|оценканалогана(?:прибыль|доход\(прибыль\)))',
@@ -505,6 +506,15 @@ def proposals(pages, evidence):
     for g in groups.values():
         figures=g['figures'];parts=g.pop('parts')
         income_seen = g.pop('income_rows_seen', set())
+        if 'net_income' not in figures and '_discontinued' not in income_seen:
+            joint = parts.get('_profit_and_comprehensive_income', [])
+            pretax = parts.get('_pretax', [])
+            tax = parts.get('_tax', [])
+            if len(joint) == len(pretax) == len(tax) == 1:
+                printed, before_tax, tax_charge = joint[0], pretax[0], tax[0]
+                if (printed['page'] == before_tax['page'] == tax_charge['page']
+                        and Decimal(printed['raw_value']) == Decimal(before_tax['raw_value']) + Decimal(tax_charge['raw_value'])):
+                    figures['net_income'] = printed
         if {'_pretax', '_tax'} <= income_seen and 'net_income' in figures:
             g['income_reconciliation'] = {}  # unresolved cells must not silently disable the check
         if len(parts.get('_pretax', [])) == len(parts.get('_tax', [])) == 1 and 'net_income' in figures:
