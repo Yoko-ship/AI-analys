@@ -40,17 +40,19 @@ def backup():
         source.backup(target)
         if target.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ValueError("Backup database failed integrity check")
-        artifacts = target.execute("SELECT sha,byte_count FROM ingest_artifacts ORDER BY sha").fetchall()
+        artifacts = target.execute("SELECT sha,byte_count,media_type FROM ingest_artifacts ORDER BY sha").fetchall()
     finally:
         source.close()
         target.close()
     objects = root / "objects"
     objects.mkdir(exist_ok=True)
-    missing_bytes = sum(size for sha, size in artifacts if not (objects / (sha + ".pdf")).exists())
+    from .workbooks import MEDIA_TYPE
+    filenames = {sha: sha + (".xlsx" if media == MEDIA_TYPE else ".pdf") for sha, _, media in artifacts}
+    missing_bytes = sum(size for sha, size, _ in artifacts if not (objects / filenames[sha]).exists())
     if shutil.disk_usage(root).free < missing_bytes + 512 * 1024 * 1024:
         raise ValueError("Insufficient free space for verified financial backup")
-    for sha, size in artifacts:
-        destination = objects / (sha + ".pdf")
+    for sha, size, _ in artifacts:
+        destination = objects / filenames[sha]
         if not destination.exists():
             payload = documents.read_artifact(sha)
             if len(payload) != size:
@@ -69,7 +71,7 @@ def backup():
                 os.unlink(name)
         if hashlib.sha256(destination.read_bytes()).hexdigest() != sha:
             raise ValueError("Backup original failed hash verification")
-    manifest = {"version": 1, "created_at": store.now(), "artifacts": [sha for sha, _ in artifacts],
+    manifest = {"version": 1, "created_at": store.now(), "artifacts": list(filenames),
                 "database_sha256": hashlib.sha256((scratch / "catalog.db").read_bytes()).hexdigest()}
     with (scratch / "manifest.json").open("w") as stream:
         json.dump(manifest, stream, sort_keys=True)
@@ -92,7 +94,10 @@ def verify_backup(path):
     for sha in manifest["artifacts"]:
         if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):
             raise ValueError("Invalid backup artifact identifier")
-        if hashlib.sha256((path.parent / "objects" / (sha + ".pdf")).read_bytes()).hexdigest() != sha:
+        original = path.parent / "objects" / (sha + ".pdf")
+        if not original.exists():
+            original = original.with_suffix(".xlsx")
+        if hashlib.sha256(original.read_bytes()).hexdigest() != sha:
             raise ValueError("Backup artifact mismatch")
     with tempfile.TemporaryDirectory(prefix="financial-restore-check-") as scratch:
         restored = Path(scratch) / "catalog.db"

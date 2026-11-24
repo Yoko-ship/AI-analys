@@ -329,7 +329,11 @@ def extract_job(job, *, ocr=False):
                and e["sha256"] == row["sha"]]
     proposals = []
     reused_reviews = {}
-    if cached:
+    if documents.file_format(content)[0] == '.xlsx':
+        from . import workbooks
+        payload = workbooks.draft(content)
+        proposals.append((payload, payload['page_count'], None))
+    elif cached:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             count = len(pdf.pages)
         seen = set()

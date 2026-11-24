@@ -7,7 +7,7 @@ import tempfile
 import time
 from urllib.parse import urlparse, urljoin
 
-from . import source_policy, store
+from . import source_policy, store, workbooks
 
 FETCH_VERSION = "bounded-openinfo-v1"
 
@@ -19,9 +19,16 @@ def artifact_root():
     return root
 
 
+def file_format(payload):
+    if payload.startswith(b'PK\x03\x04'):
+        return '.xlsx', workbooks.MEDIA_TYPE
+    return '.pdf', 'application/pdf'
+
+
 def archive(payload: bytes):
     sha = hashlib.sha256(payload).hexdigest()
-    relative = sha[:2] + "/" + sha + ".pdf"
+    suffix, _ = file_format(payload)
+    relative = sha[:2] + "/" + sha + suffix
     path = artifact_root() / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
@@ -55,6 +62,8 @@ def read_artifact(sha):
     if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):
         raise ValueError("Invalid artifact identifier")
     path = artifact_root() / sha[:2] / (sha + ".pdf")
+    if not path.exists():
+        path = path.with_suffix(".xlsx")
     content = path.read_bytes()
     if hashlib.sha256(content).hexdigest() != sha:
         raise ValueError("Archived file is corrupt")
@@ -83,6 +92,11 @@ def register(c, *, org_id, ticker, url, category, metadata, processor, refresh_d
               (source_id, str(org_id), ticker, url, category, store.encoded(metadata), store.now(), store.now()))
     # A refreshed source gets a new job, while an unfinished attempt retains
     # its retry schedule. Failed jobs require an explicit operator retry.
+    if old and urlparse(url).path.lower().endswith('.xlsx'):
+        failed = c.execute("SELECT id FROM ingest_jobs WHERE source_id=? AND stage='FETCH' "
+                           "AND state='FAILED' AND error=?", (source_id, 'Source did not return a PDF')).fetchall()
+        for job in failed:
+            store.retry_failed(c, job['id'], actor='workbook importer', reason='XLSX filing support is available')
     active = c.execute("SELECT 1 FROM ingest_jobs WHERE source_id=? AND stage='FETCH' "
                        "AND state IN ('QUEUED','RUNNING','RETRY','FAILED')", (source_id,)).fetchone()
     if not active and (not old or not old["checked_at"] or old["checked_at"] < time.time() - refresh_days * 86400):
@@ -223,14 +237,17 @@ def fetch_job(job, processor, fetch=None):
           and metadata["report_form"] == source["category"] and source["category"] in {"MSFO", "Audition"}):
         options["approved_openinfo"] = True
     payload = fetch(source["url"]) if fetch else download_pdf(source["url"], **options)
-    if not payload.startswith(b"%PDF-"):
+    if urlparse(source["url"]).path.lower().endswith(".xlsx"):
+        workbooks.check_package(payload)
+    elif not payload.startswith(b"%PDF-"):
         raise ValueError("Source did not return a PDF")
+    _, media_type = file_format(payload)
     sha, path = archive(payload)
     version_id = store.digest([source["id"], sha])
     with store.transaction() as c:
         store.assert_lease(c, job)
         c.execute("INSERT INTO ingest_artifacts VALUES (?,?,?,?,?) ON CONFLICT(sha) DO NOTHING",
-                  (sha, path, len(payload), "application/pdf", store.now()))
+                  (sha, path, len(payload), media_type, store.now()))
         c.execute("INSERT INTO ingest_versions VALUES (?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
                   (version_id, source["id"], sha, source["metadata_json"], store.now()))
         if _listing_evidence(metadata):

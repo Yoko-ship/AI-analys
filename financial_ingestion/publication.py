@@ -287,7 +287,8 @@ def passport(ticker, period, field, *, scope=None):
                        "calculation": figure.get("calculation"), "components": figure.get("components"),
                        "stated_period": period, "role": meta["role"], "published_at": row["created_at"],
                        "title": f"{meta.get('issuer_name', ticker)} — IFRS {meta['document_year']} ({meta['scope']})",
-                       "page": figure["page"], "raw_label": figure["raw_label"], "raw_value": float(amount),
+                       "page": figure["page"], **{k: figure[k] for k in ("sheet", "row", "cell") if k in figure},
+                       "raw_label": figure["raw_label"], "raw_value": float(amount),
                        "currency": meta["currency"], "fx": meta.get("fx"),
                        "unit_scale": int(meta["unit_scale"]), "normalized_value": float(payload["normalized_uzs"][key]),
                        "normalization_formula": ("sum(coefficient × source component) × unit_scale"

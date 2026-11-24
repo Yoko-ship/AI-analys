@@ -86,7 +86,7 @@ async def api_company_financials(
 
 @router.get("/api/company/{ticker}/financials/documents/{sha}")
 async def api_financial_document(ticker: str, sha: str) -> Response:
-    from financial_ingestion.documents import issuer_artifact
+    from financial_ingestion.documents import file_format, issuer_artifact
     if not re.fullmatch(r"[0-9a-f]{64}", sha):
         raise HTTPException(status_code=404, detail="Document not found")
     try:
@@ -96,8 +96,9 @@ async def api_financial_document(ticker: str, sha: str) -> Response:
         raise HTTPException(status_code=503, detail="Archived document integrity/unavailability error") from exc
     if payload is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    return Response(payload, media_type="application/pdf", headers={
+    suffix, media = file_format(payload)
+    return Response(payload, media_type=media, headers={
         "Cache-Control": "public, max-age=31536000, immutable",
-        "Content-Disposition": f'inline; filename="{sha}.pdf"',
+        "Content-Disposition": f'inline; filename="{sha}{suffix}"',
         "X-Content-Type-Options": "nosniff",
     })

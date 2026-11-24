@@ -772,3 +772,65 @@ def test_uzbekneftegaz_ordinary_share_reads_issuer_ifrs_and_its_archived_pdf(set
     securities['OCBK'] = {'isin': 'UZ7036279999'}
     assert publication.snapshots('UZNG') == []
     assert documents.issuer_artifact('UZNG', entry['sha256']) is None
+
+
+def test_national_fund_q1_workbook_preserves_original_and_worksheet_cells(setup, tmp_path, monkeypatch):
+    from pathlib import Path
+    monkeypatch.setenv("FINANCIAL_BACKUP_DIR", str(tmp_path / "backups"))
+    import asyncio
+    from openpyxl import Workbook
+    from financial_ingestion import maintenance
+    from server.company.financial_routes import api_financial_document
+
+    # Openinfo MSFO 3181. Column E is Q1, column D is an extended comparison.
+    url = 'https://openinfo.uz/media/msfo/33ce9408-a087-4411-83d8-f310d423fa47.xlsx'
+    wb = Workbook()
+    wb.active.title = 'BS KPMG'
+    sheet = wb.create_sheet('PL KPMG')
+    sheet['D5'] = 'For the period 24 December 2024 - 31 December 2025'
+    sheet['E5'] = 'For 1 Quarter 2026'
+    sheet['B16'], sheet['D16'], sheet['E16'] = 'Profit for the period', 1403150, -417432.22806919005
+    data = io.BytesIO()
+    wb.save(data)
+    content = data.getvalue()
+    with store.transaction() as db:
+        db.execute("INSERT INTO catalog_companies (ticker,company_name,org_id) VALUES ('UZNF','JSC UzNIF','1059')")
+        registration = dict(org_id='1059', ticker='UZNF', url=url, category='MSFO',
+                            metadata={}, processor=extract.processor_version())
+        source = documents.register(db, **registration)
+        # This source previously exhausted its retries in the PDF-only worker.
+        db.execute("UPDATE ingest_jobs SET state='FAILED',processor=?,error=? WHERE source_id=?",
+                   (documents.FETCH_VERSION, 'Source did not return a PDF', source))
+        documents.register(db, **registration)
+    run = worker.run(max_jobs=2, fetch=lambda _: content)
+    assert run['processed'] == 2 and all(r['ok'] for r in run['outcomes']), run
+    candidate, = candidates()
+    payload = json.loads(candidate['payload_json'])
+    assert payload['page_count'] == 2
+    worksheet = payload['worksheet_evidence'][1]
+    assert worksheet['sheet'] == 'PL KPMG'
+    assert float(worksheet['cells']['E16']) == pytest.approx(sheet['E16'].value, abs=1e-9, rel=0)
+    assert worksheet['cells']['D5'] != worksheet['cells']['E5']
+    assert not publication.snapshots('UZNF')
+    sha = hashlib.sha256(content).hexdigest()
+    assert documents.read_artifact(sha) == content
+    with store.connect() as db:
+        artifact = db.execute('SELECT * FROM ingest_artifacts WHERE sha=?', (sha,)).fetchone()
+        assert artifact['media_type'].endswith('spreadsheetml.sheet')
+    reviewed = deepcopy(payload)
+    reviewed.update(classification=dict(standard='MSFO', scope='separate', currency='UZS', unit_scale='1000000',
+        period_start='2026-01-01', period_end='2026-03-31', document_year=2026, role='PRIMARY',
+        issuer_evidence='JSC UzNIF', period_evidence=sheet['E5'].value, unit_evidence='Million UZS'),
+        figures={'net_income':dict(raw_value=worksheet['cells']['E16'], raw_label='Profit for the period',
+                                    page=2, sheet='PL KPMG', row=16, cell='E16', column_year=2026)})
+    cid = publication.propose(candidate['id'], reviewed, actor='reviewer', reason='verified worksheet')
+    publication.approve(cid, actor='reviewer', reason='verified worksheet')
+    publication.publish('UZNF', actor='reviewer', candidate_ids=[cid])
+    source = publication.passport('UZNF', '2026Q1', 'net_profit', scope='separate')['source']
+    assert (source['sheet'], source['cell']) == ('PL KPMG', 'E16')
+    response = asyncio.run(api_financial_document('UZNF',sha))
+    assert response.body == content and response.media_type == artifact['media_type']
+    assert response.headers['content-disposition'].endswith('.xlsx"')
+    backed = maintenance.backup()
+    assert maintenance.verify_backup(backed['path'])['verified']
+    assert (Path(backed['path']).parent / 'objects' / (sha+'.xlsx')).read_bytes() == content
