@@ -40,6 +40,722 @@
           "sha256": "170461f44be005223292f60f9b999b4f59fccf75c03b8fee613ca07072e24701"
         }
       ]
+    },
+    {
+      "org_id": "78",
+      "record_id": "702",
+      "approval_id": "2091",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/702/",
+          "description": "Approved annual filing 2091 for \"Andijon biokimyo zavodi\" AJ, tax ID 200240495. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/аудитор_2015_.pdf",
+          "page": 1,
+          "sha256": "e58ba7bba395b90d99746c05270a8787d0a59d840c0ed0596aac3519ab27cc36",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1059/",
+          "description": "The following year's opening balance agrees on 34 nonzero lines. Its prior-year income and expense columns agree on 9 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "396",
+      "record_id": "492",
+      "approval_id": "1860",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/492/",
+          "description": "Approved annual filing 1860 for \"Biokimyo\" AJ, tax ID 200468069. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторское_заключение_по_итогам_2015_год.pdf",
+          "page": 2,
+          "sha256": "3f7f6836220bb576909a8946ce7817893d095d1f4c503153fbe2fa685186cf8f",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1097/",
+          "description": "The following year's opening balance agrees on 36 nonzero lines. Its prior-year income and expense columns agree on 7 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "540",
+      "record_id": "513",
+      "approval_id": "1882",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/513/",
+          "description": "Approved annual filing 1882 for «BOSHTRANSLOYIHA» АЖ, tax ID 201052150. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Audit_08-07-2016.pdf",
+          "page": 2,
+          "sha256": "67be12ed940ffbdf94bc8263f52f196b61856f6f65144ac7c0ea52e9021a3226",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1148/",
+          "description": "The following year's opening balance agrees on 26 nonzero lines. Its prior-year income and expense columns agree on 10 and 8 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "633",
+      "record_id": "213",
+      "approval_id": "1446",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/213/",
+          "description": "Approved annual filing 1446 for \"Chilonzor buyum savdo kompleksi\" AJ, tax ID 200797009. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудитор.FR11.pdf",
+          "page": 2,
+          "sha256": "b71bf71aedafaac7c0fb0367440a15c7f509de0773357d2f53489d5fdd832210",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1197/",
+          "description": "The following year's opening balance agrees on 21 nonzero lines. Its prior-year income and expense columns agree on 6 and 2 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "636",
+      "record_id": "276",
+      "approval_id": "1596",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/276/",
+          "description": "Approved annual filing 1596 for \"DORI-DARMON\" AK, tax ID 201389395. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/ZakluchenieVnesh.Audita_за_2015_rgyBy0K.pdf",
+          "page": 1,
+          "sha256": "47e7a098029d18bfdbcdb5dd529f8a98ee92388d1fbe7f90810b5a1c0ea9d98e",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1021/",
+          "description": "The following year's opening balance agrees on 31 nonzero lines. Its prior-year income and expense columns agree on 10 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "636",
+      "record_id": "2209",
+      "approval_id": "9520",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2017,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/2209/",
+          "description": "Approved annual filing 9520 for \"DORI-DARMON\" AK, tax ID 201389395. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудит_за_2017год_НСБУ.PDF",
+          "page": 1,
+          "sha256": "7ae7ff814966b6c1ae215831b9eb98ba8695a5fa3b0475243b1c19568a640381",
+          "description": "The auditor identifies the issuer and its 2017 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/2621/",
+          "description": "The following year's opening balance agrees on 40 nonzero lines. Its prior-year income and expense columns agree on 11 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "553",
+      "record_id": "518",
+      "approval_id": "1887",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/518/",
+          "description": "Approved annual filing 1887 for \"Elektrqishloqqurilish\" AJ, tax ID 200523561. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/audit_EQQ.pdf",
+          "page": 1,
+          "sha256": "fb5053dee86968ef96bb0fc83c8886742194902ac720f6152e710a2f804f1788",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1390/",
+          "description": "The following year's opening balance agrees on 41 nonzero lines. Its prior-year income and expense columns agree on 10 and 11 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "246",
+      "record_id": "300",
+      "approval_id": "1628",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/300/",
+          "description": "Approved annual filing 1628 for \"JSM\" AJ, tax ID 200002854. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/аудиторское_ckyK9hx.pdf",
+          "page": 1,
+          "sha256": "ef0810c24cdb08837727f53ebd9b8971bad109fcbbccb1e32f0e632b4899c4b2",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1344/",
+          "description": "The following year's opening balance agrees on 34 nonzero lines. Its prior-year income and expense columns agree on 3 and 2 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "34",
+      "record_id": "18",
+      "approval_id": "2035",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/18/",
+          "description": "Approved annual filing 2035 for \"KAPITAL SUG’URTA\" AJ, tax ID 200638670. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудит._зак._по_НСФО_за_2015г..PDF",
+          "page": 1,
+          "sha256": "f73898ba8b0c791fef1442af6ccc05392c214a21a60506fa4a9ac17421f1ccb4",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/29/",
+          "description": "The following year's opening balance agrees on 65 nonzero lines. Its prior-year income and expense columns agree on 13 and 18 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "670",
+      "record_id": "16",
+      "approval_id": "1762",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/16/",
+          "description": "Approved annual filing 1762 for \"Kafolat sug'urta kompaniyasi\" AJ, tax ID 202288236. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/audit_report_BYvsOFg.pdf",
+          "page": 1,
+          "sha256": "3eb1fdabfac5066277d23b67a4fb43150e7f0cd7d83ff4cf6cbf5feee0d287e3",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/26/",
+          "description": "The following year's opening balance agrees on 65 nonzero lines. Its prior-year income and expense columns agree on 17 and 15 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "445",
+      "record_id": "390",
+      "approval_id": "1740",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/390/",
+          "description": "Approved annual filing 1740 for АО \"Кварц\", tax ID 200124765. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудит.pdf",
+          "page": 1,
+          "sha256": "0350bd9b044964df12a9adca420c0659ad375d48f5d3293ee2d71b3a798dbe6a",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1091/",
+          "description": "The following year's opening balance agrees on 38 nonzero lines. Its prior-year income and expense columns agree on 9 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "197",
+      "record_id": "465",
+      "approval_id": "1830",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/465/",
+          "description": "Approved annual filing 1830 for \"Minora qurish ekspeditsiyasi\" AJ, tax ID 200697734. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/аудит_хулосаси.pdf",
+          "page": 1,
+          "sha256": "3b6a50d76e96fbdabf79dfb18889dd68c18b92edd183110fa08ece3482f8b153",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1182/",
+          "description": "The following year's opening balance agrees on 40 nonzero lines. Its prior-year income and expense columns agree on 11 and 7 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "611",
+      "record_id": "257",
+      "approval_id": "1571",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/257/",
+          "description": "Approved annual filing 1571 for \"Orgres\" AJ, tax ID 200797522. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Заключение_аудитора.pdf",
+          "page": 1,
+          "sha256": "f8b370018ca7c1af8241f75232ef0983ea2672a4f55b310a1f875d214d9ee035",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1033/",
+          "description": "The following year's opening balance agrees on 33 nonzero lines. Its prior-year income and expense columns agree on 10 and 8 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "614",
+      "record_id": "435",
+      "approval_id": "1797",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/435/",
+          "description": "Approved annual filing 1797 for \"Toshneftegazqurilish\" AJ, tax ID 202737167. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторское_заключение_по_итогам__2015г..pdf",
+          "page": 1,
+          "sha256": "0941c412507ae266feb941debe842d397f84b23df746e6e52dfa8e6ff90ce6c5",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1340/",
+          "description": "The following year's opening balance agrees on 45 nonzero lines. Its prior-year income and expense columns agree on 7 and 7 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "195",
+      "record_id": "461",
+      "approval_id": "1826",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/461/",
+          "description": "Approved annual filing 1826 for \"Qashqadaryo texnologik transport\" AJ, tax ID 201560065. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/аудит_хулосаси_2015_й.pdf",
+          "page": 1,
+          "sha256": "640beac9ba0b9b45a6d0acede353b698fef31f2be8dc6bf21c241e665119e30b",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1322/",
+          "description": "The following year's opening balance agrees on 41 nonzero lines. Its prior-year income and expense columns agree on 11 and 8 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "238",
+      "record_id": "397",
+      "approval_id": "1751",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/397/",
+          "description": "Approved annual filing 1751 for \"Qizilqumsement \"AJ, tax ID 200002878. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/заключения_аудита.pdf",
+          "page": 1,
+          "sha256": "7b834190802f27736ca520e5b74eb2cce65bc41c596301d1b101f00f819c3161",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1231/",
+          "description": "The following year's opening balance agrees on 50 nonzero lines. Its prior-year income and expense columns agree on 9 and 4 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "650",
+      "record_id": "720",
+      "approval_id": "2114",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/720/",
+          "description": "Approved annual filing 2114 for «TASHGIPROGOR» AJ, tax ID 200898412. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Audit_Tashgiprogor.PDF",
+          "page": 1,
+          "sha256": "97a4b3f3562e2888288ffb8c99df42162c0c3d6adc7449044d41f3431712de40",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1187/",
+          "description": "The following year's opening balance agrees on 39 nonzero lines. Its prior-year income and expense columns agree on 11 and 6 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "726",
+      "record_id": "133",
+      "approval_id": "474",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/133/",
+          "description": "Approved annual filing 474 for \"TDM\" AJ, tax ID 200547706. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудит2015.pdf",
+          "page": 1,
+          "sha256": "0f42ee23f60a08b6bb3bfa47079e7f8c66b3de65d62a4e4f1d3bf28a8d6cfd6d",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1058/",
+          "description": "The following year's opening balance agrees on 37 nonzero lines. Its prior-year income and expense columns agree on 9 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "310",
+      "record_id": "268",
+      "approval_id": "1587",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/268/",
+          "description": "Approved annual filing 1587 for \"O'zQEQ\" AJ, tax ID 200714671. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторлик_хулосаси.PDF",
+          "page": 1,
+          "sha256": "3c4a22e2596ecfe15233ac0e836f96db933be7f1cbfc6f9675b1fcd2ecb6466f",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1176/",
+          "description": "The following year's opening balance agrees on 24 nonzero lines. Its prior-year income and expense columns agree on 10 and 7 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "717",
+      "record_id": "256",
+      "approval_id": "1568",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/256/",
+          "description": "Approved annual filing 1568 for \"O'zRTXB\" AJ, tax ID 200933985. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/аудиторское_заключение_2015.pdf",
+          "page": 1,
+          "sha256": "344ccd04b715287fa12d04983eca496f2f4e5889e8e176c0a1e4bfb6823772b9",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1040/",
+          "description": "The following year's opening balance agrees on 36 nonzero lines. Its prior-year income and expense columns agree on 11 and 9 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "731",
+      "record_id": "546",
+      "approval_id": "1915",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/546/",
+          "description": "Approved annual filing 1915 for \"O'zvagonta'mir\" AJ, tax ID 203661294. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторское_заключение_за_2015_год.PDF",
+          "page": 1,
+          "sha256": "8dc78fbf399b10af0385f983e4045e99bb606943566bdb91756f6cd6f128c12e",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1113/",
+          "description": "The following year's opening balance agrees on 24 nonzero lines. Its prior-year income and expense columns agree on 10 and 6 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "638",
+      "record_id": "269",
+      "approval_id": "1588",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/269/",
+          "description": "Approved annual filing 1588 for \"O'zagrolizing\" AJ, tax ID 203071206. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Ташки_аудит_хулоса_2015_якуни.PDF",
+          "page": 2,
+          "sha256": "35b688824725b779b7be823cdd8c6f4e1de0e8bcd74712fbd79931325f5bbfaa",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1095/",
+          "description": "The following year's opening balance agrees on 39 nonzero lines. Its prior-year income and expense columns agree on 8 and 10 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "669",
+      "record_id": "21",
+      "approval_id": "2144",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/21/",
+          "description": "Approved annual filing 2144 for \"O'zagrosug'urta\" AJ, tax ID 201042345. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Заключение_аудита.pdf",
+          "page": 1,
+          "sha256": "8ee5d1be87147402c6140c6c5e59cbfa89d0306e10263c7e91fbce9fb47f40df",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/27/",
+          "description": "The following year's opening balance agrees on 66 nonzero lines. Its prior-year income and expense columns agree on 19 and 12 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "576",
+      "record_id": "404",
+      "approval_id": "1761",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/404/",
+          "description": "Approved annual filing 1761 for \"UzMED-lizing\" AJ ILK, tax ID 300788395. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторское_заключение_за_2015-.pdf",
+          "page": 1,
+          "sha256": "8ed3850fcd1063f1c5494d0dd67d3b197009ee2ee0536e4b9756ccd57d952e6d",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1256/",
+          "description": "The following year's opening balance agrees on 36 nonzero lines. Its prior-year income and expense columns agree on 9 and 8 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "150",
+      "record_id": "364",
+      "approval_id": "1708",
+      "reported_date": null,
+      "labeled_year": null,
+      "fiscal_year": 2015,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/364/",
+          "description": "Approved annual filing 1708 for \"O'zpartamponaj\" AJ, tax ID 203025578. The source reporting date is empty."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/2015_йил_учун_Аудиторлик_Хулосаси.PDF",
+          "page": 1,
+          "sha256": "32dc8d06c626f453a34297f0a9c4479570b2ee1b8756784e55a9f0642904e7dd",
+          "description": "The auditor identifies the issuer and its 2015 annual financial statements on this page."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1119/",
+          "description": "The following year's opening balance agrees on 32 nonzero lines. Its prior-year income and expense columns agree on 7 and 8 nonzero lines, respectively."
+        }
+      ]
+    },
+    {
+      "org_id": "841",
+      "record_id": "307",
+      "approval_id": "21812",
+      "reported_date": "2024-01-01",
+      "labeled_year": 2024,
+      "fiscal_year": 2023,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/bank/annual/307/",
+          "description": "Approved annual filing 21812 for “IMKON FINANS mikromoliya tashkiloti” AJ, tax ID 302096393. The source reporting date is 2024-01-01."
+        },
+        {
+          "url": "https://openinfo.uz/media/audition/Аудит_хулосаси_aueuwMS.PDF",
+          "page": 1,
+          "sha256": "eabc235f31fa94b90e0c68ebc8f9210a2fac12232c0d9f20fbe7cbf2c39ea071",
+          "description": "The auditor identifies the issuer and its 2023 annual financial statements on this page."
+        }
+      ]
+    },
+    {
+      "org_id": "841",
+      "record_id": "269",
+      "approval_id": "19685",
+      "reported_date": "2023-01-01",
+      "labeled_year": 2023,
+      "fiscal_year": 2022,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/bank/annual/269/",
+          "description": "Approved annual filing 19685 for “IMKON FINANS mikromoliya tashkiloti” AJ, tax ID 302096393. The source reporting date is 2023-01-01."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудит_хулосаси_2022_mNeuTKM.pdf",
+          "page": 1,
+          "sha256": "7449d41e5a8bcd3100322b3b6ae37b8980497d20341b94419c50418156de20ca",
+          "description": "The auditor identifies the issuer and its 2022 annual financial statements on this page."
+        }
+      ]
+    },
+    {
+      "org_id": "841",
+      "record_id": "3310",
+      "approval_id": "14574",
+      "reported_date": "2021-01-01",
+      "labeled_year": 2021,
+      "fiscal_year": 2020,
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-24",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3310/",
+          "description": "Approved annual filing 14574 for “IMKON FINANS mikromoliya tashkiloti” AJ, tax ID 302096393. The source reporting date is 2021-01-01."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторлик_хулоса_2og2ugg.pdf",
+          "page": 1,
+          "sha256": "6551ea18ae8cda5623247f6853fdd0ba4ba5bf31f842a9cc103913092ffc8fb1",
+          "description": "The auditor identifies Imkon Finans and its balance and income statements at 1 January 2021. The annual disclosure records the company's 2020 material facts and board changes and gives the shareholder approval date as 9 February 2021."
+        }
+      ]
     }
   ]
 }

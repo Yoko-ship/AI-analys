@@ -85,3 +85,29 @@ def test_ledger_rejects_unreviewable_or_nonperiod_metadata(update):
 def test_ledger_rejects_invalid_schema(payload):
     with pytest.raises(ValueError):
         periods._validate_ledger(payload)
+
+
+@pytest.mark.parametrize('issuer, record, approval, stated, year, family, published', [
+    ('841', '307', 21812, '2024-01-01', 2023, 'bank', '2024-02-15T16:42:08'),
+    ('841', '269', 19685, '2023-01-01', 2022, 'bank', '2023-02-10T13:39:21'),
+    ('636', '276', 1596, None, 2015, 'jsc', '2016-06-13T04:16:57'),
+])
+def test_approval_discovers_reviewed_annual_with_missing_or_conflicting_date(
+        monkeypatch, issuer, record, approval, stated, year, family, published):
+    from catalogue import sources
+
+    properties = {'org_type': family, 'report_type': 'annual'}
+    filing = {'id': approval, 'organization': issuer, 'object_id': record, 'pub_date': published,
+              'report_type': 'NSBU', 'status': 'approved', 'properties': properties}
+    detail = {'id': record, 'parent_id': approval, 'organization': {'id': issuer}, 'status': 'approved',
+              'pub_date': filing['pub_date'], 'reporting_year': stated,
+              'balance_sheet_report': [{'title': 'Assets'}], 'financial_results_report': [{'title': 'Profit'}]}
+    monkeypatch.setattr(sources, '_json_get', lambda *args: detail)
+    def discover():
+        return sources.additional_annual_forms(None, issuer, [filing], [{'id': record, 'reporting_year': None}], [])
+    assert [r['reporting_year'] for r in discover()] == [year]
+    detail['reporting_year'] = '2014-10-01'
+    assert discover() == []
+    detail.update(reporting_year=stated, parent_id=approval + 1)
+    filing['id'] = approval + 1
+    assert discover() == []

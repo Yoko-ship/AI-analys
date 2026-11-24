@@ -123,7 +123,9 @@ def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[l
 
 def additional_annual_forms(session, org_id, approvals, indexed, errors):
     """Resolve approved annuals omitted from an issuer's accounting-form index."""
-    known = {str(row.get("id")) for row in indexed}
+    from nsbu_periods import approved_annual_year
+
+    known = {str(row.get("id")) for row in indexed if type(row.get("reporting_year")) is int}
     extra = []
     for approval in approvals:
         properties = approval.get("properties") or {}
@@ -138,14 +140,14 @@ def additional_annual_forms(session, org_id, approvals, indexed, errors):
         route = "jsc" if family == "llc" else family
         try:
             detail = _json_get(session, f"/reports/{route}/annual/{record_id}/")
-            end = str(detail.get("reporting_year") or "")
+            year = approved_annual_year(org_id, detail)
             if (str((detail.get("organization") or {}).get("id")) != str(org_id)
                     or str(detail.get("id")) != record_id or str(detail.get("parent_id")) != parent
-                    or detail.get("status") != "approved" or not re.fullmatch(r"\d{4}-12-31", end)
+                    or detail.get("status") != "approved" or year is None
                     or not detail.get("balance_sheet_report") or not detail.get("financial_results_report")
                     or not approval.get("pub_date") or detail.get("pub_date") != approval["pub_date"]):
                 raise ValueError("Annual statement does not match the approval or fiscal year-end")
-            extra.append({"id": record_id, "object_id": record_id, "reporting_year": int(end[:4]),
+            extra.append({"id": record_id, "object_id": record_id, "reporting_year": year,
                           "pub_date": approval["pub_date"], "combined_form": route, "pdf_id": parent,
                           "properties": properties})
         except Exception as exc:

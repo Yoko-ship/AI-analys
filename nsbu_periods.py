@@ -31,15 +31,27 @@ def _validate_ledger(payload: Any) -> dict[tuple[str, str], dict[str, Any]]:
         raise ValueError("Invalid reviewed NSBU period ledger schema")
     records: dict[tuple[str, str], dict[str, Any]] = {}
     for record in payload["annual_periods"]:
-        if not isinstance(record, dict) or set(record) != _RECORD_KEYS:
+        if not isinstance(record, dict) or set(record) not in (
+                _RECORD_KEYS, _RECORD_KEYS | {"approval_id", "reported_date"}):
             raise ValueError("NSBU period correction must contain only reviewed period metadata")
         for field in ("org_id", "record_id"):
             if not isinstance(record[field], str) or not re.fullmatch(r"[1-9][0-9]*", record[field]):
                 raise ValueError(f"Invalid NSBU period correction {field}")
+        approved = "approval_id" in record
+        if approved:
+            if not isinstance(record["approval_id"], str) or not re.fullmatch(r"[1-9][0-9]*", record["approval_id"]):
+                raise ValueError("Invalid OpenInfo approval ID")
+            stated = record["reported_date"]
+            if stated is not None and (not isinstance(stated, str) or date.fromisoformat(stated).isoformat() != stated):
+                raise ValueError("Invalid date on reviewed OpenInfo approval")
+            if record["labeled_year"] != (int(stated[:4]) if stated else None):
+                raise ValueError("Source year must match the reviewed approval date")
         for field in ("labeled_year", "fiscal_year"):
+            if field == "labeled_year" and approved and record[field] is None:
+                continue
             if type(record[field]) is not int or not 2000 <= record[field] <= 2100:
                 raise ValueError(f"Invalid NSBU period correction {field}")
-        if record["fiscal_year"] >= record["labeled_year"]:
+        if not approved and record["fiscal_year"] >= record["labeled_year"]:
             raise ValueError("Reviewed fiscal year must precede the source's mislabeled year")
         if not isinstance(record["reviewed_by"], str) or not record["reviewed_by"].strip():
             raise ValueError("NSBU period correction requires a reviewer")
@@ -90,6 +102,16 @@ def resolve_annual_year(org_id: Any, record_id: Any, labeled_year: int) -> int |
     if type(labeled_year) is not int:
         return None
     record = _reviewed_annual_periods().get((str(org_id), str(record_id)))
-    if record is None or record["labeled_year"] != labeled_year:
+    if record is None or "approval_id" in record or record["labeled_year"] != labeled_year:
         return None
     return record["fiscal_year"]
+
+
+def approved_annual_year(org_id, detail):
+    """Use the fiscal year reviewed for this exact approval and original date."""
+    record = _reviewed_annual_periods().get((str(org_id), str(detail.get("id"))))
+    if (record and record.get("approval_id") == str(detail.get("parent_id"))
+            and record.get("reported_date") == detail.get("reporting_year")):
+        return record["fiscal_year"]
+    stated = detail.get("reporting_year") or ""
+    return int(stated[:4]) if isinstance(stated, str) and re.fullmatch(r"[0-9]{4}-12-31", stated) else None
