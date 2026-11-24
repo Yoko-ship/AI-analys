@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 from functools import lru_cache
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -32,7 +33,8 @@ def _validate_ledger(payload: Any) -> dict[tuple[str, str], dict[str, Any]]:
     records: dict[tuple[str, str], dict[str, Any]] = {}
     for record in payload["annual_periods"]:
         if not isinstance(record, dict) or set(record) not in (
-                _RECORD_KEYS, _RECORD_KEYS | {"approval_id", "reported_date"}):
+                _RECORD_KEYS, _RECORD_KEYS | {"approval_id", "reported_date"},
+                _RECORD_KEYS | {"approval_id", "reported_date", "workbook_url", "workbook_rows_sha256"}):
             raise ValueError("NSBU period correction must contain only reviewed period metadata")
         for field in ("org_id", "record_id"):
             if not isinstance(record[field], str) or not re.fullmatch(r"[1-9][0-9]*", record[field]):
@@ -46,6 +48,15 @@ def _validate_ledger(payload: Any) -> dict[tuple[str, str], dict[str, Any]]:
                 raise ValueError("Invalid date on reviewed OpenInfo approval")
             if record["labeled_year"] != (int(stated[:4]) if stated else None):
                 raise ValueError("Source year must match the reviewed approval date")
+        if "workbook_url" in record:
+            url = record["workbook_url"]
+            if (not isinstance(url, str) or not re.fullmatch(
+                    r"https://new-api\.openinfo\.uz/api/v2/reports/export-excel/\?report_type=annual"
+                    r"&org_type=(?:jsc|bank|insurance)&report_id=" + record["record_id"] + r"&lang=ru", url)
+                    or not isinstance(record["workbook_rows_sha256"], str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", record["workbook_rows_sha256"])
+                    or record["reported_date"] is None):
+                raise ValueError("Invalid reviewed annual workbook source")
         for field in ("labeled_year", "fiscal_year"):
             if field == "labeled_year" and approved and record[field] is None:
                 continue
@@ -115,3 +126,18 @@ def approved_annual_year(org_id, detail):
         return record["fiscal_year"]
     stated = detail.get("reporting_year") or ""
     return int(stated[:4]) if isinstance(stated, str) and re.fullmatch(r"[0-9]{4}-12-31", stated) else None
+
+@lru_cache(maxsize=1)
+def reviewed_workbooks():
+    """Index fiscal-year evidence for the exact official workbook export."""
+    return {record["workbook_url"]: record for record in _reviewed_annual_periods().values()
+            if "workbook_url" in record}
+
+
+def workbook_rows_digest(parsed):
+    """Openinfo regenerates XLSX metadata. The physical sheet labels and cells identify a revision."""
+    if not parsed or not (parsed.get("source_coverage") or {}).get("complete"):
+        return None
+    sheets = [(sheet.get("sheet"), [row["cells"] for row in sheet.get("source_rows", [])])
+              for sheet in parsed.get("sheets", [])]
+    return sha256(json.dumps(sheets, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()

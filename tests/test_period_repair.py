@@ -181,3 +181,33 @@ def test_history_checkpoint_digest_includes_period_validation_rules(monkeypatch,
     before = nsbu_history.implementation_digest()
     path.write_text("changed period validation")
     assert nsbu_history.implementation_digest() != before
+
+
+def test_uzngp_reviewed_annual_uses_its_signed_fiscal_year(monkeypatch):
+    from pathlib import Path
+    from catalogue import sources
+
+    url = ('https://new-api.openinfo.uz/api/v2/reports/export-excel/'
+           '?report_type=annual&org_type=jsc&report_id=1140&lang=ru')
+    filing = {'excel_url': url, 'excel_url_form1': url, 'published_at': '2017-07-03T05:56:41'}
+    parsed = _parse_excel_workbook((Path(__file__).parent / 'fixtures/openinfo/uzngp_2016_annual.xlsx').read_bytes())
+    parsed['ok'] = True
+    monkeypatch.setattr(catalogue_filings, 'get_report_urls', lambda *_: filing)
+    monkeypatch.setattr(catalogue_history, '_parse_workbook_uncached', lambda *_: parsed)
+
+    def fetch(year, quarter=0):
+        return sources.fetch_report_excel_data('UZNGP', 'NSBU', year, quarter, use_snapshot_cache=False)
+
+    assert parsed['reporting_date'] == '2016-01-01'
+    result = fetch(2016)
+    assert result['ok'], result['error']
+    assert catalogue_history.parse_catalogued_report('UZNGP', 'NSBU', 2016, 0)['total_assets'] == 16832110772
+    assert not fetch(2015)['ok']
+    assert not fetch(2015, 4)['ok']
+    filing['excel_url'] = filing['excel_url_form1'] = url.replace('1140', '1141')
+    assert not fetch(2016)['ok']
+    filing['excel_url'] = filing['excel_url_form1'] = url
+    for row in parsed['sheets'][0]['source_rows']:
+        if 16832110772 in row['cells']:
+            row['cells'][row['cells'].index(16832110772)] = 35743881008
+    assert not fetch(2016)['ok']

@@ -28,7 +28,7 @@ def verified_balance(ticker, form, year, quarter):
     workbook = sources.fetch_report_excel_data(ticker, form, year, quarter)
     if not workbook.get('ok') or not workbook.get('balance'):
         raise ValueError('Balance workbook unavailable')
-    conflict = periods.header_period_conflict(workbook['balance'], year, quarter, urls.get('published_at'))
+    conflict = periods.header_period_conflict(workbook['balance'], year, quarter, urls.get('published_at'), source_url)
     if conflict:
         raise ValueError('Balance workbook belongs to a different reporting period')
     values = parsing.compute_filing_values(workbook.get('income'), workbook['balance'])['source_values']

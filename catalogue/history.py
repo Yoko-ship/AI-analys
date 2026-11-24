@@ -80,7 +80,7 @@ def parse_catalogued_report(ticker: str, form: str, year: int, quarter: int,
     parsed = _parse_workbook_uncached(session or catalogue_sources._make_session(), excel)
     if not parsed.get("ok"):
         return {}
-    conflict = catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get("published_at"))
+    conflict = catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get("published_at"), excel)
     if conflict:
         catalogue_settings.logger.warning("catalog: %s %s %s refused — %s", ticker, form,
                                           f"{year}Q{quarter}" if quarter else year, conflict)

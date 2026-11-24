@@ -756,6 +756,202 @@
           "description": "The auditor identifies Imkon Finans and its balance and income statements at 1 January 2021. The annual disclosure records the company's 2020 material facts and board changes and gives the shareholder approval date as 9 February 2021."
         }
       ]
+    },
+    {
+      "org_id": "735",
+      "record_id": "902",
+      "approval_id": "3841",
+      "labeled_year": 2015,
+      "fiscal_year": 2015,
+      "reported_date": "2015-01-01",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=902&lang=ru",
+      "workbook_rows_sha256": "7e7b6a0ea2d5480e9d30ebf5aa37dcd2b25fc295b15568f791fffe02ca3e4feb",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/902/",
+          "description": "Approved annual filing for issuer tax ID 200837914. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Прил_3_аудиторское_заключение_2015.pdf",
+          "page": 1,
+          "sha256": "e5d6c8162d96449f4e97ee01e084bc4970e70865a40c4a0adcffe44bdeb6e7b0",
+          "description": "The signed audit identifies \"O'zbekneftgaz\" AJ and the financial year ended 31 December 2015."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1140/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
+    },
+    {
+      "org_id": "735",
+      "record_id": "1140",
+      "approval_id": "4956",
+      "labeled_year": 2016,
+      "fiscal_year": 2016,
+      "reported_date": "2016-01-01",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=1140&lang=ru",
+      "workbook_rows_sha256": "0822fcadb79bef3f60545f875b7191e3d819b232f4fee7283f7c5c6a6e87f123",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/1140/",
+          "description": "Approved annual filing for issuer tax ID 200837914. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/4_Аудит_НСБУ_2016.pdf",
+          "page": 3,
+          "sha256": "1436116f08f6c18050697102148d061195d3be406e0b284181ba0970bc00b664",
+          "description": "The signed audit identifies \"O'zbekneftgaz\" AJ and the financial year ended 31 December 2016."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/2187/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
+    },
+    {
+      "org_id": "735",
+      "record_id": "2187",
+      "approval_id": "8837",
+      "labeled_year": 2017,
+      "fiscal_year": 2017,
+      "reported_date": "2017-01-01",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=2187&lang=ru",
+      "workbook_rows_sha256": "1e40e9235f4d2cae97ac509aba1260e2b7fb1dd02a10d0cf9cf7aeceda8851fc",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/2187/",
+          "description": "Approved annual filing for issuer tax ID 200837914. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/5_аудит_закл_Бухг_аудит_2017.pdf",
+          "page": 3,
+          "sha256": "03bac3ccc570c108caf6d715f02a9ed14b16d16f0b5121be84f2e88634960992",
+          "description": "The signed audit identifies \"O'zbekneftgaz\" AJ and the financial year ended 31 December 2017."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/2814/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
+    },
+    {
+      "org_id": "735",
+      "record_id": "2814",
+      "approval_id": "12182",
+      "labeled_year": 2018,
+      "fiscal_year": 2018,
+      "reported_date": "2018-01-01",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=2814&lang=ru",
+      "workbook_rows_sha256": "9956f1169083f6998376d400e45fdb876da1b65038db84a05dd41bd81e25e97b",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/2814/",
+          "description": "Approved annual filing for issuer tax ID 200837914. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторское_заключение_НСБУ_за_2018_год.pdf",
+          "page": 3,
+          "sha256": "b0ceca5e823f06f45f84d58b2204e7f7667f694b0285a967eff733129192d426",
+          "description": "The signed audit identifies \"O'zbekneftgaz\" AJ and the financial year ended 31 December 2018."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3280/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
+    },
+    {
+      "org_id": "383",
+      "record_id": "3251",
+      "approval_id": "14432",
+      "labeled_year": 2020,
+      "fiscal_year": 2019,
+      "reported_date": "2020-11-25",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3251&lang=ru",
+      "workbook_rows_sha256": "6500cec9a08141b0748d753b2c78cf92d4ed796b55bf5c2064e88406b506a634",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3251/",
+          "description": "Approved annual filing for issuer tax ID 200460222. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Заключение_GBUQSCB.pdf",
+          "page": 1,
+          "sha256": "39d2e527bb1b7a835773c3ee22d41d0bb4919f843f63b3d3f3df39a928ccf2ea",
+          "description": "The signed audit identifies “O‘zmetkombinat” AJ and the financial year ended 31 December 2019."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3493/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
+    },
+    {
+      "org_id": "80",
+      "record_id": "3247",
+      "approval_id": "14418",
+      "labeled_year": 2020,
+      "fiscal_year": 2019,
+      "reported_date": "2020-11-23",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3247&lang=ru",
+      "workbook_rows_sha256": "3f56d7bfab8bf01101476cc93995ff16a83150a71490ecb8f7c0affeb2db995d",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3247/",
+          "description": "Approved annual filing for issuer tax ID 201832779. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/2019_йил_учун_ташқи_аудит_хулосаси_.pdf",
+          "page": 2,
+          "sha256": "c9ed8ec0c241ab77b06373138b21d3df983b2c843be5fc3e53c54cf30628a758",
+          "description": "The signed audit identifies “O’z-Tong Hong Kompani” O’zbekiston-Koreya QK AJ and the financial year ended 31 December 2019."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3497/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
+    },
+    {
+      "org_id": "80",
+      "record_id": "3969",
+      "approval_id": "17808",
+      "labeled_year": 2021,
+      "fiscal_year": 2021,
+      "reported_date": "2021-01-01",
+      "workbook_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3969&lang=ru",
+      "workbook_rows_sha256": "836c993c565f61e1e69a87b529c19b890caa1d50f5bb85124ec5f6e61e66d519",
+      "reviewed_by": "UZStock filing review",
+      "reviewed_at": "2026-11-25",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3969/",
+          "description": "Approved annual filing for issuer tax ID 201832779. Its exported workbook carries the same reporting date as the approval."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/2021_йил_якуни__бўйича_Ташқи_хулоса.pdf",
+          "page": 2,
+          "sha256": "04310dfaa43ca0d294afcbd0fbb4e9dcfe21117c5e9a286adfb4e04128616f03",
+          "description": "The signed audit identifies “O’z-Tong Hong Kompani” O’zbekiston-Koreya QK AJ and the financial year ended 31 December 2021."
+        },
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/4587/",
+          "description": "The following annual filing independently reports the same closing assets, equity and net income in its prior-year columns, within one thousand UZS of the submitted amounts."
+        }
+      ]
     }
   ]
 }

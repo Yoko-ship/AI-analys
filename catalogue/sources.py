@@ -259,7 +259,7 @@ def cached_report_excel_data(ticker: str, form: str, year: int, quarter: int) ->
         parsed = cache._get_excel_cache(url) or cache.retained_filing_workbook(url)
         if (parsed and parsed.get('ok') and parsed.get('parser_version') == settings.EXCEL_PARSER_VERSION
                 and parsed.get('financial_revision') == revision
-                and not catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get('published_at'))):
+                and not catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get('published_at'), url)):
             documents[url] = {**parsed, 'source_url': url}
     income = documents.get(urls.get('excel_url'))
     balance = documents.get(urls.get('excel_url_form1') or urls.get('excel_url'))
@@ -306,7 +306,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
                       else catalogue_history._parse_workbook_uncached(session, doc["excel_url"]))
 
-            conflict = (catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get("published_at"))
+            conflict = (catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get("published_at"), doc["excel_url"])
 
                         if parsed.get("ok") else None)
 
@@ -361,7 +361,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
                            else catalogue_history._parse_workbook_uncached(session, doc1["excel_url"]))
 
-                conflict1 = (catalogue_periods.header_period_conflict(parsed1, year, quarter, urls.get("published_at"))
+                conflict1 = (catalogue_periods.header_period_conflict(parsed1, year, quarter, urls.get("published_at"), doc1["excel_url"])
 
                              if parsed1.get("ok") else None)
 

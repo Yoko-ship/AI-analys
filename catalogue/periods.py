@@ -7,6 +7,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 import catalogue.settings as catalogue_settings
+from nsbu_periods import reviewed_workbooks, workbook_rows_digest
 import re
 
 
@@ -309,7 +310,7 @@ _HEADER_WINDOW_DAYS = {"annual": (-45, 300), "quarter": (-31, 75)}
 
 
 def header_period_conflict(parsed: dict[str, Any] | None, year: int, quarter: int,
-                           published_at: Any = None) -> str | None:
+                           published_at: Any = None, source_url: str | None = None) -> str | None:
     """Why a workbook's own header contradicts the period it is filed under.
 
     None when the header agrees, states no date, or states one that cannot be
@@ -324,6 +325,13 @@ def header_period_conflict(parsed: dict[str, Any] | None, year: int, quarter: in
         return f"workbook header states Q{stated_quarter}, catalogued as {year}Q{quarter}"
     stated = _stated_reporting_date(parsed)
     if stated is None or not year:
+        return None
+    review = reviewed_workbooks().get(source_url) if source_url else None
+    if review and stated.isoformat() == review["reported_date"]:
+        if workbook_rows_digest(parsed) != review["workbook_rows_sha256"]:
+            return "annual workbook has changed since its fiscal year was verified"
+        if quarter or int(year) != review["fiscal_year"]:
+            return f"reviewed annual workbook belongs to fiscal year {review['fiscal_year']}"
         return None
     try:
         published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")).date() if published_at else None
