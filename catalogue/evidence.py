@@ -127,6 +127,18 @@ def get_financial_value_passport(ticker: str, period: str, field: str,
 
 
 
+    if form == 'NSBU' and len(period) == 4:
+        from financial_columns import reviewed_annual
+        index = catalogue_filings.get_company_index(ticker) or {}
+        for audit in reviewed_annual.selected(index.get('org_id')):
+            if audit['period_end'][:4] == period:
+                import data_quality
+                mapped = _FINANCIAL_PASSPORT_FIELDS.get(field, field)
+                if mapped not in data_quality.approved_corrections_for(ticker, form, int(period), 0):
+                    result = reviewed_annual.passport(audit, field, mapped)
+                    if result:
+                        return result
+
     if field in _FINANCIAL_PASSPORT_DERIVED:
 
         definition = _FINANCIAL_PASSPORT_DERIVED[field]

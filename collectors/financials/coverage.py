@@ -16,7 +16,7 @@ import requests
 from urllib3.util.retry import Retry
 
 from financial_analysis.report_investor_metrics import SHARE_METRICS
-from financial_ingestion.store import encoded
+from financial_ingestion.store import digest, encoded
 
 log = logging.getLogger("collector")
 ANNUAL = ["assets", "equity", "net_profit", "revenue", "roa", "roe", "de", "pe", "pb", "ps", "ep", "cg3", "cg5", "dy", "price", "market_cap", "nim", "npl", "cost_of_risk"]
@@ -317,6 +317,10 @@ def evidence(companies):
                     values = list(dict(row).values())
                     for t in orgs[str(values[0])]:
                         versions[t].append([table, *values[1:]])
+    from financial_columns import reviewed_annual
+    for audit in reviewed_annual.reports():
+        for symbol in orgs.get(audit['issuer_id'], []):
+            versions[symbol].append(['reviewed_nsbu_annual', audit['period_end'], digest(audit)])
     for (org, t, end, scope), (disclosure, version) in share_disclosures._reviewed(
         share_disclosures.REVIEWED
     ).items():

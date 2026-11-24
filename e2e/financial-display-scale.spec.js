@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
 
 test('UZTL financial tables and charts use billions while source passports keep original amounts', async ({ page }, testInfo) => {
@@ -154,4 +155,40 @@ test('a public microfinance balance line opens its structured Openinfo filing', 
   const row = page.locator('.company-financials .fin-table tr').filter({hasText:label});
   await row.getByRole('button',{name:'265.4',exact:true}).click({timeout:6000});
   await expect(page.getByRole('dialog').getByRole('link')).toHaveAttribute('href',source);
+});
+
+test('Biznes Finans annual profit and its source are shared by its bonds', async ({page}) => {
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const fixture = JSON.parse(execFileSync(python, ['-c', `
+import asyncio, json, os, tempfile
+from catalogue.storage import get_catalog_conn
+from catalogue.facts import upsert_facts
+from server.company.financials import financial_series, financial_passport
+with tempfile.TemporaryDirectory() as scratch:
+    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
+    c = get_catalog_conn()
+    with c:
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('BFMT2B5','Biznes Finans','922')")
+    c.close()
+    upsert_facts([{'entity_id':'922','dataset':'financial_indicators','field':'net_profit','value':10998939.67,
+                   'period':'2025','unit':'UZS','source':'nsbu_derived_indicators','source_url':'nsbu-excel:BFMT2B5:2025'}])
+    print(json.dumps({'series':asyncio.run(financial_series('BFMT2B5')), 'passport':asyncio.run(financial_passport('BFMT2B5','2025','net_profit'))}))
+`], {encoding:'utf8'}));
+  await page.addInitScript(() => {
+    localStorage.setItem('uz_stock_analyzer_language','en');
+    sessionStorage.setItem('uz_sponsor_seen','1');
+  });
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/financials')) return route.fulfill({json:fixture.series});
+    if (path.endsWith('/financials/passport')) return route.fulfill({json:fixture.passport});
+    return route.fulfill({json:{ok:true,items:[],companies:[],securities:{}}});
+  });
+  await page.goto('/company/BFMT2B5?tab=financials');
+  await page.getByRole('button',{name:'Table',exact:true}).click();
+  const profit = page.locator('.fin-table tr').filter({hasText:'Net Profit'}).first();
+  await expect(profit).toContainText('34.14');
+  await profit.getByRole('button',{name:'54.72',exact:true}).click();
+  await expect(page.getByRole('dialog').getByRole('link',{name:/PDF/i})).toHaveAttribute(
+    'href', 'https://openinfo.uz/media/audition/271f1719-cd04-470b-b834-e503925cb0c3.pdf');
 });

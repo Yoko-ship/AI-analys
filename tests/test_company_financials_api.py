@@ -362,3 +362,25 @@ def test_abkz_public_gross_margin_uses_matching_filed_periods(monkeypatch):
     quarter = history('2025Q4', 42434170000, 8355210000)['gross_margin']
     assert quarter['values']['2025Q4'] == pytest.approx(8355210 / 42434170 * 100)
     assert 'gross_margin' not in history('2025', 142434170000, 30000000000)
+
+
+def test_domestic_excel_indicator_requires_annual_workbook_to_show_as_annual(monkeypatch):
+    # Openinfo quarterly filing 17018 reports exactly this Q1 2025 profit.
+    monkeypatch.setattr(catalogue_filings, 'get_company_index', lambda t: {'org_id':'922'})
+    monkeypatch.setattr(catalogue_snapshots, 'get_financials_series', lambda *args: {})
+    from financial_columns import reviewed_annual
+    monkeypatch.setattr(reviewed_annual, 'selected', lambda *args: [])
+    derived = dict(_fact('net_profit', '2025', 10998939.67, source='nsbu_derived_indicators'),
+                   source_url='nsbu-excel:BFMT2B5:2025')
+    monkeypatch.setattr(catalogue_facts, 'get_facts', lambda *args: [derived])
+    report = {'report_form':'NSBU', 'year':2025, 'period_type':'quarter', 'quarter':1,
+              'excel_url':'https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=jsc&report_type=quarter&report_id=17018'}
+    monkeypatch.setattr(catalogue_filings, 'get_company_reports', lambda *args: [report])
+    client = TestClient(api.app)
+    history = client.get('/api/company/BFMT2B5/financials').json()
+    assert '2025' not in history['series'].get('net_profit', {}).get('values', {})
+    # Genuine year-end workbook (M K Leasing annual 5890) remains usable.
+    report.update(period_type='annual', quarter=0, excel_url=report['excel_url'].replace('quarter','annual').replace('17018','5890'))
+    monkeypatch.setattr(catalogue_filings, 'get_company_index', lambda t: {'org_id':'944'})
+    derived.update(value_num=62989938, source_url='nsbu-excel:MKLS3B2:2025')
+    assert client.get('/api/company/MKLS3B2/financials').json()['series']['net_profit']['values']['2025'] == 62_989_938_000

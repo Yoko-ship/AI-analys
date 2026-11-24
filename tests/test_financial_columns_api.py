@@ -428,3 +428,43 @@ def test_grbk_opening_bank_details_with_empty_control_totals_do_not_establish_ze
     opening = [r for r in result if r['role']=='COMPARATIVE']
     assert not any(r['metric_id']=='customer_funds' for r in derived.enrich(opening))
     assert next(r['raw_value'] for r in opening if r['metric_id']=='loans_gross') == '833855536'
+
+
+def test_reviewed_domestic_annual_matches_company_history_and_passport(monkeypatch, tmp_path):
+    from catalogue import facts
+    from server.company import financials
+    import asyncio
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    c = get_catalog_conn()
+    with c:
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('BFMT2B5','Biznes Finans','922')")
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('BFMT3V3','Biznes Finans','922')")
+    c.close()
+    stale = {'period':'2025', 'source':'nsbu_derived_indicators', 'source_url':'nsbu-excel:BFMT2B5:2025'}
+    monkeypatch.setattr(facts, 'get_facts', lambda *args: [
+        dict(stale, field='net_profit', value_num=10998939.67),
+        dict(stale, field='roe', value_num=15.18)])
+    for ticker in ('BFMT2B5', 'BFMT3V3'):
+        history = asyncio.run(financials.financial_series(ticker))
+        assert history['series']['net_profit']['values']['2025'] == 54_721_675_000
+        assert history['series']['net_profit']['values']['2024'] == 34_142_728_000
+        assert history['series']['gross_profit']['values']['2023'] == 38_559_566_000
+        assert history['series']['roe']['values']['2025'] == pytest.approx(54_721_675 * 200 / (100_627_996 + 61_474_743))
+        assert history['series']['roa']['values']['2025'] == pytest.approx(54_721_675 * 200 / (237_963_099 + 143_140_141))
+        passport = asyncio.run(financials.financial_passport(ticker, '2025', 'net_profit'))
+        assert passport['status'] == 'SOURCED'
+        assert passport['source']['page'] == 8
+        assert passport['source']['normalized_value'] == 54_721_675_000
+        assert passport['source']['pdf_url'].endswith('271f1719-cd04-470b-b834-e503925cb0c3.pdf')
+        with TestClient(app) as client:
+            base = f'/api/company/{ticker}/financials/columns'
+            table = client.get(base, params={'form':'NSBU','scope':'separate','include_ratios':'false'}).json()
+            values = {r['id']:r['cells']['2025'] for r in table['rows']}
+            assert values['F2:270']['value'] == '54721675'
+            assert values['F2:250']['value'] == '-9726747'
+            assert values['F2:020']['value'] == '0'
+            assert values['F1:400']['value'] == '237963099'
+            assert values['F2:270']['source_url'] == passport['source']['pdf_url']
+            assert not table['coverage']['complete']
+            assert not client.get(base, params={'form':'NSBU','scope':'consolidated'}).json()['rows']

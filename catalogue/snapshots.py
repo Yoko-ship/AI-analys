@@ -1152,6 +1152,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
         placeholders = ",".join("?" * len(siblings))
 
+        issuer_id = catalogue_filings._issuer_org(conn, t) if form == "NSBU" else None
         december = []
         if form == "NSBU":
             december = conn.execute(
@@ -1257,6 +1258,12 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
             {k: row[k] for k in ("roa", "roe", "debt_ratio", "debt_to_equity")
 
              if row[k] is not None})
+
+    if issuer_id:
+        from financial_columns import reviewed_annual
+        for report in reviewed_annual.selected(issuer_id):
+            period = report['period_end'][:4]
+            out.setdefault(period, {}).update(reviewed_annual.history(report))
 
     # A reviewed "Добавить" can be the only known value in a year.  Seed those
 

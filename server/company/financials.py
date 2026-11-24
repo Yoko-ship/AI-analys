@@ -434,9 +434,21 @@ async def _financial_series(ticker: str, freq: str='annual', form: str='NSBU', s
         series: dict[str, dict[str, Any]] = {}
         periods: set[str] = set()
         last_fy = catalogue_periods._latest_complete_fiscal_year()
+        reports = await asyncio.to_thread(catalogue_filings.get_company_reports, ticker) or []
+        annual_reports = [r for r in reports if r.get('report_form') == standard and r.get('period_type') == 'annual'
+                          and not r.get('quarter') and r.get('year')]
+        workbook_years = {str(r['year']) for r in annual_reports if r.get('excel_url') or r.get('excel_url_form1')}
+        from financial_columns import reviewed_annual
+        audits = await asyncio.to_thread(reviewed_annual.selected, org_id) if standard == 'NSBU' else []
+        audited_years = {r['period_end'][:4] for r in audits}
         for f in facts:
             value = f.get('value_num')
             period = str(f.get('period') or '').strip()
+            if f.get('source') == 'nsbu_derived_indicators':
+                # Older computed facts can carry a bare year for a quarterly workbook.
+                workbook_source = str(f.get('source_url') or '').startswith('nsbu-excel:')
+                if period in audited_years or (workbook_source and period not in workbook_years):
+                    continue
             if value is None or len(period) != 4 or (not period.isdigit()):
                 continue
             if int(period) > last_fy:
@@ -543,7 +555,8 @@ async def _financial_series(ticker: str, freq: str='annual', form: str='NSBU', s
         # A catalogue row with no workbook and no PDF is not a filing: BECM's
         # «2022» and «2025» rows carry neither, and counting them let the copies
         # of 2021 and 2024 stand as years of their own.
-        annual_years = {str(r.get('year')) for r in await asyncio.to_thread(partial(catalogue_filings.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year') and (r.get('excel_url') or r.get('excel_url_form1') or r.get('pdf_url'))}
+        annual_years = audited_years | {str(r['year']) for r in annual_reports
+                                       if r.get('excel_url') or r.get('excel_url_form1') or r.get('pdf_url')}
         data_gaps = [{'period': p, 'code': 'EMPTY_SOURCE_FILING'} for p in sorted(unusable, reverse=True) if int(p) <= last_fy]
         for ghost in duplicate_filed_years(series, periods, annual_years):
             data_gaps.append({'period': ghost, 'code': 'UNSUPPORTED_DUPLICATE_PERIOD'})
@@ -565,6 +578,10 @@ async def _financial_series(ticker: str, freq: str='annual', form: str='NSBU', s
         if derived:
             series['net_margin'] = {'unit': '%', 'money': False, 'derived': True, 'values': derived}
         _fill_equity_by_identity(series)
+        if audits:
+            from catalogue.organization import organization_kind
+            kind = organization_kind(ticker, name=(index or {}).get('company_name'), sector=(index or {}).get('sector'))
+            reviewed_annual.add_history_ratios(audits, ticker, kind, series)
         for p, source in sorted(period_sources.items(), reverse=True):
             data_gaps.append({'period': p, 'code': 'FROM_COMPARATIVE', 'severity': 'info', **source})
         for p in sorted(annual_years - periods, reverse=True):

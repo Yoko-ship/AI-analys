@@ -223,7 +223,18 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
                 source_rows.extend(microfinance.filed_rows(document, version, source))
                 if include_sources:
                     forms.append(microfinance.original_form(document, version, source))
+        from . import reviewed_annual
+        audits = reviewed_annual.selected(issuer_id, scope, docs)
+        if audits:
+            source_rows = reviewed_annual.merge_rows(source_rows, audits, annual=freq == 'annual')
+            if include_sources:
+                for audit in audits:
+                    forms.append({'period_end':audit['period_end'], 'source_version':audit['sha256'],
+                                  'source_url':audit['url'], 'documents':[{'form':'NSBU', 'page':p['page'],
+                                  'text':'\n'.join(f'{label}: {raw}' for _,label,raw in p['rows'])} for p in audit['pages']]})
         issues = {issue for d in docs for issue in d['source_coverage']['issues']}
+        if audits:
+            issues.add('PARTIAL_SOURCE_IMPORT')
         if any(not microfinance.has_all_lines(document) for document, _, _ in filed):
             issues.add('INCOMPLETE_STRUCTURED_FORM')
         coverage = {'complete': bool(docs or filed) and not issues and all(d['source_coverage']['complete'] for d in docs),
