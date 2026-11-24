@@ -5,6 +5,7 @@ workbook it parsed, with an atomic pointer to its current source version.
 """
 from datetime import date, datetime, timezone
 from calendar import monthrange
+from decimal import Decimal
 import json
 import re
 
@@ -13,6 +14,7 @@ from catalogue.storage import get_catalog_conn
 from financial_ingestion.store import digest, encoded
 from financial_ingestion.statements import units, currency
 from . import nsbu
+from .share_disclosures import filing_key
 
 CONSOLIDATED_TITLE = re.compile(r'консолидированн|consolidated|konsolidatsiyalashgan', re.I)
 
@@ -28,6 +30,35 @@ def _schema(c):
             period_end TEXT NOT NULL, version_id TEXT NOT NULL,
             PRIMARY KEY (issuer_id, standard, scope, period_end));
     ''')
+
+
+def _bank_filing_type(doc):
+    keys = [filing_key(form.get('source_url')) for form in doc['source_forms']]
+    if keys and all(key and key[0] == 'bank' and key[1] == keys[0][1] for key in keys):
+        return keys[0][1]
+    return None
+
+
+def _prefer_annual(annual, quarterly):
+    if annual['quality'] != 'valid' or _bank_filing_type(annual) != 'annual':
+        return False
+    try:
+        annual_date = date.fromisoformat((annual.get('published_at') or '')[:10])
+        quarter_date = date.fromisoformat((quarterly.get('published_at') or '')[:10])
+    except ValueError:
+        return False
+    if annual_date <= quarter_date:
+        return False
+    stated_dates = {str(cells[1])[:10] for form in annual['source_forms'] for sheet in form['sheets']
+                    for row in sheet['source_rows'] if len(cells := row['cells']) >= 2
+                    and str(cells[0]).casefold().replace('ё', 'е').startswith('дата отчетности')}
+    if stated_dates != {annual['period_end']}:
+        return False
+    totals = {r['metric_id']: Decimal(r['current']['value']) for r in annual['rows']
+              if r['source_form'] == 'BANK_BS' and r['current']['quality'] == 'valid'
+              and r['metric_id'] in ('total_assets', 'total_equity', 'total_liabilities')}
+    return (len(totals) == 3 and totals['total_assets'] > 0
+            and abs(totals['total_assets'] - totals['total_equity'] - totals['total_liabilities']) <= 1)
 
 
 def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
@@ -79,13 +110,22 @@ def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
         _schema(c)
         context = (str(issuer_id), 'NSBU', scope, end)
         with c:
-            old = c.execute('SELECT version_id FROM financial_form_heads WHERE issuer_id=? AND standard=? AND scope=? AND period_end=?', context).fetchone()
+            # Claim the period in one write so concurrent imports see the committed predecessor.
+            old_id = c.execute(
+                'INSERT INTO financial_form_heads VALUES (?,?,?,?,?) '
+                'ON CONFLICT(issuer_id,standard,scope,period_end) DO UPDATE SET version_id=financial_form_heads.version_id '
+                'RETURNING version_id', (*context, version_id)).fetchone()['version_id']
             payload['source_version'] = version_id
-            payload['previous_version'] = old['version_id'] if old and old['version_id'] != version_id else None
+            payload['previous_version'] = old_id if old_id != version_id else None
             c.execute('INSERT INTO financial_form_versions VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
                       (version_id, *context, encoded(payload), datetime.now(timezone.utc).isoformat()))
-            c.execute('INSERT INTO financial_form_heads VALUES (?,?,?,?,?) ON CONFLICT(issuer_id,standard,scope,period_end) DO UPDATE SET version_id=excluded.version_id',
-                      (*context, version_id))
+            if old_id != version_id:
+                if template == 'bank' and quarter == 4 and _bank_filing_type(payload) == 'quarter':
+                    prior = c.execute('SELECT payload_json FROM financial_form_versions WHERE id=?', (old_id,)).fetchone()
+                    if prior and _prefer_annual(json.loads(prior['payload_json']), payload):
+                        return version_id
+                c.execute('UPDATE financial_form_heads SET version_id=? WHERE issuer_id=? AND standard=? '
+                          'AND scope=? AND period_end=?', (version_id, *context))
         return version_id
     finally:
         c.close()

@@ -66,3 +66,24 @@ def test_scoped_bank_workbooks_keep_separate_and_group_values_apart(isolated_sto
     series, sources=source_store.consolidated_series('217')
     assert series['2026Q3']['total_assets']>0
     assert [s['report_id'] for s in sources]==[group]
+
+
+def test_replaying_iptb_q4_preserves_the_later_annual_balance_and_archives_both(isolated_store):
+    filings = json.loads(Path('tests/fixtures/openinfo/iptb_2019_year_end_deposits.json').read_text())
+    def ingest(kind, published):
+        src = filings[kind]
+        book = {'sheets': [{'sheet': src['sheet'], 'source_rows': src['rows']}], 'source_url': src['source_url'],
+                'source_coverage': {'complete': True, 'issues': []}}
+        return record({'ok': True, 'income': book, 'balance': book}, issuer_id='17', year=2019,
+                      quarter=4 if kind == 'quarter' else 0, urls={'excel_url': src['source_url'], 'published_at': published})
+    first = ingest('quarter', '2020-01-22T09:51:48')
+    annual = ingest('annual', '2020-10-14T12:06:37')
+    assert ingest('quarter', '2020-01-22T09:51:48') == first
+    head = source_store.read('17', standard='NSBU', scope='separate', period_end='2019-12-31')[0]
+    assert head['source_version'] == annual
+    assert source_store.read_filing_version('17','separate','2019-12-31',
+                                            {'excel_url':filings['quarter']['source_url']})[0]['source_version'] == first
+    amounts = {r['metric_id']: r['current']['value'] for r in head['rows']}
+    assert amounts['total_assets'] == '23587804019'
+    corrected = ingest('quarter', '2020-10-15')
+    assert source_store.read('17', standard='NSBU', scope='separate', period_end='2019-12-31')[0]['source_version'] == corrected
