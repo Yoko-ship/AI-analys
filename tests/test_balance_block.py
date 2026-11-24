@@ -111,6 +111,32 @@ class TestBankBalance:
             ],
         }
 
+    def test_ocbk_q3_2026_partial_bank_form_preserves_the_filed_asset_total(self):
+        # Openinfo bank/quarter/1308. The funding side and the entire P&L
+        # were submitted as zeros despite a populated asset side.
+        detail = {
+            "org_type": "bank",
+            "quarter_balance_sheet_report": [
+                {"title": "1. Кассовая наличность", "value1": "0", "value2": "1097358330"},
+                {"title": "14. Итого активов", "value1": "0", "value2": "14620710893"},
+                {"title": "25. Итого обязательств", "value1": "0", "value2": "0"},
+                {"title": "30. Итого собственного капитала", "value1": "0", "value2": "0"},
+                {"title": "31. Итого обязательств и собственного капитала", "value1": "0", "value2": "0"},
+            ],
+            "quarter_financial_results_report": [
+                {"title": "л. Итого процентных доходов", "value": "0"},
+                {"title": "11. ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)", "value": "0"},
+            ],
+        }
+        metrics = orc.extract_metrics(detail)
+        assert metrics["balance"]["assets_end"] == 14_620_710_893
+        assert metrics["balance"]["equity_end"] is None
+        assert metrics["total_liabilities"] is None
+        assert metrics["net_income"] is None
+        # A reported break-even result in a populated P&L remains meaningful.
+        detail["quarter_financial_results_report"][0]["value"] = "734332115"
+        assert orc.extract_metrics(detail)["net_income"] == 0
+
     def test_the_bank_titles_30_and_31(self):
         got = orc.extract_metrics(self._detail())
         assert got["balance"] == {"equity_start": 300.0, "equity_end": 500.0,

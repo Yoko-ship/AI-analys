@@ -850,6 +850,13 @@ def map_special_lines(snapshot, workbook, org):
         balance["current_values"] = {key: value for key, value in balance["opening_values"].items() if key not in preserved}
         balance["opening_values"] = {}
     used = {**_apply_columns(snapshot, staged["income"]), **_apply_columns(snapshot, balance)}
+    if (org == "bank" and snapshot["current_values"].get("net_income") == 0
+            and financial_analysis_sector_inputs.bank_income_is_placeholder(workbook.get("income"), workbook.get("balance"))):
+        fields = {"net_income", "revenue", "gross_profit", "operating_income", "operating_expenses", "total_income",
+                  "noninterest_income", *staged["income"]["current_values"]}
+        for field in fields.difference(snapshot.get("reviewed_correction_fields", ())):
+            if snapshot["current_values"].get(field) == 0:
+                snapshot["current_values"].pop(field)
     _drop_missed_bank_lines(snapshot)
     sources = snapshot.setdefault("comparison_sources", {})
     sources["opening_from_filing"] = used.get("opening_values", False)

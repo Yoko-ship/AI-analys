@@ -35,6 +35,24 @@ def _row(code: str, label: str, end: float, begin: float = 0.0) -> tuple[str, li
     return (label, [float(code), begin, end])
 
 
+def test_ocbk_q3_2026_partial_workbook_keeps_assets_without_an_invented_profit():
+    balance = [
+        ("1. Кассовая наличность", [0, 1_097_358_330]),
+        ("14. Итого активов", [0, 14_620_710_893]),
+        ("25. Итого обязательств", [0, 0]),
+        ("30. Итого собственного капитала", [0, 0]),
+        ("31. Итого обязательств и собственного капитала", [0, 0]),
+    ]
+    income = [("л. Итого процентных доходов", [0]), ("11. ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)", [0])]
+    workbook = _sheet(balance + income)
+    values = catalogue_parsing.compute_filing_values(workbook, workbook)["source_values"]
+    assert values["total_assets"] == 14_620_710_893
+    assert values["net_income"] is None
+    income[0] = ("л. Итого процентных доходов", [734_332_115])
+    workbook = _sheet(balance + income)
+    assert catalogue_parsing.compute_filing_values(workbook, workbook)["source_values"]["net_income"] == 0
+
+
 class TestCashLine:
     def test_the_settlement_account_wins_over_the_roll_up(self) -> None:
         balance = _sheet([

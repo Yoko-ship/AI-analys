@@ -160,6 +160,23 @@ def test_income_amounts_do_not_hide_a_blank_balance_column():
     assert "cash" not in data["current_values"] and "term_deposits" not in data["current_values"]
 
 
+def test_ocbk_q3_2026_placeholder_income_is_not_reintroduced_by_sector_mapping():
+    snapshot = _bank_snapshot()
+    snapshot["current_values"] = {"total_assets": 14_620_710_893, "net_income": 0}
+    workbook = _bank_workbook([
+        ("14. Итого активов", 0, 14_620_710_893),
+        ("25. Итого обязательств", 0, 0),
+        ("30. Итого собственного капитала", 0, 0),
+        ("31. Итого обязательств и собственного капитала", 0, 0),
+    ])
+    workbook["income"] = {"sheets": [{"sheet": "income", "table_rows": [
+        {"label": "11. ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)", "source_cells": ["11. ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)", 0]},
+    ]}]}
+    service.map_special_lines(snapshot, workbook, "bank")
+    assert snapshot["current_values"].get("net_income") is None
+    assert snapshot["current_values"]["total_assets"] == 14_620_710_893
+
+
 def test_a_bank_never_holds_zero_cash_equity_or_central_bank_balances():
     # UNVB cash and TNBN equity of zero beside billions of assets.
     data = _bank_snapshot()

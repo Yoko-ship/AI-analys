@@ -892,6 +892,14 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "balance": balance_block,
 
     }
+    if net_income == 0 and total_assets:
+        from financial_analysis.sector_inputs import bank_income_is_placeholder
+        if bank_income_is_placeholder(income_data or balance_data, balance_data or income_data):
+            for field in ("revenue", "gross_profit", "net_income", "noninterest_income", "total_income",
+                          "operating_income", "operating_expenses"):
+                source_rows[field] = None
+            for ratio in ("ROA", "ROE", "net_margin"):
+                metrics[ratio] = None
     return {"metrics": metrics, "source_values": source_rows}
 
 

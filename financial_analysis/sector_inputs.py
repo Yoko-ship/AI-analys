@@ -38,6 +38,33 @@ def statement_rows(sheet, form):
     return [row for row in rows if not re.search(r"^(мфо|кфс|оконх|окпо|соато|период квартала|номер расчетного|присвоенные)", str(row.get("label") or ""), re.I)]
 
 
+def bank_income_is_placeholder(income, balance):
+    """Detect a zero income form attached to an incomplete bank balance."""
+    closing = {}
+    for sheet in (balance or {}).get("sheets") or []:
+        for row in statement_rows(sheet, "form1"):
+            label = str(row.get("label") or "").strip().lower()
+            match = re.match(r"^(14|25|30|31)\.\s*итого\s+", label)
+            if match:
+                cells = row.get("numeric_values") or (row.get("source_cells") or [])[1:]
+                if cells:
+                    closing[match[1]] = financial_analysis_sector_numbers.decimal(cells[-1])
+    if not (closing.get("14") and closing["14"] > 0
+            and closing.get("25") == closing.get("30") == closing.get("31") == 0):
+        return False
+    saw_amount = False
+    for sheet in (income or {}).get("sheets") or []:
+        for row in statement_rows(sheet, "form2"):
+            cells = row.get("numeric_values") or (row.get("source_cells") or [])[1:]
+            for cell in cells:
+                value = financial_analysis_sector_numbers.decimal(cell)
+                if value is not None:
+                    if value:
+                        return False
+                    saw_amount = True
+    return saw_amount
+
+
 def source_line_pairs(workbook, form, known_codes=None):
     """Read explicit positions; never compress blanks or copy opening into end.
 

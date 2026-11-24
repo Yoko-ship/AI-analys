@@ -508,6 +508,19 @@ def extract_metrics(detail):
         eq_start, eq_end = _balance_pair(_by_title(bal, ["итого собственного капитала"]), bkey)
         as_start, as_end = _balance_pair(
             _by_title(bal, ["итого обязательств", "собственного капитала"]), bkey)
+        if org == "bank" and as_end == eq_end == out["total_liabilities"] == 0:
+            # A partial bank filing can populate assets while leaving every
+            # funding total and even the whole income statement at template zero.
+            asset_start, asset_end = _balance_pair(_by_title(bal, ["итого активов"]), bkey)
+            if asset_end is not None and asset_end > 0:
+                as_start, as_end = asset_start, asset_end
+                eq_end = out["total_liabilities"] = None
+                if not any(_num(row.get("value1")) for row in bal):
+                    as_start = eq_start = None
+                if not any(pl_value(row) for row in pl):
+                    for field in ("revenue", "gross_profit", "operating_income", "operating_expenses",
+                                  "noninterest_income", "net_income"):
+                        out[field] = None
         if any(v is not None for v in (eq_start, eq_end, as_start, as_end)):
             out["balance"] = {"equity_start": eq_start, "equity_end": eq_end,
                               "assets_start": as_start, "assets_end": as_end}
