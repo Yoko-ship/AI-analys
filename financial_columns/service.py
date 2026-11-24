@@ -245,9 +245,9 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         scope = scope or (available_scopes[0] if available_scopes else 'separate')
         snapshots = publication.snapshots(ticker, scope=scope) if scope != 'unknown' else []
         source_rows = observations.ifrs(snapshots, canonical_metrics=view != 'full')
-        if view == 'investor':
+        if template == 'fund' or view == 'investor':
             from .investor_sources import audited_fund
-            source_rows.extend(audited_fund(ticker, issuer_id, scope, imported=source_rows))
+            source_rows.extend(audited_fund(ticker, issuer_id, scope, imported=source_rows, statement_fields=view != 'investor'))
             if source_rows and scope not in available_scopes:
                 available_scopes = [*available_scopes, scope]
         if snapshots:

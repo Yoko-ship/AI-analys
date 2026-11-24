@@ -208,6 +208,9 @@ def test_partial_import_preserves_unrelated_audited_fund_metrics(monkeypatch, tm
     from financial_columns.investor_sources import audited_fund
 
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    with service.get_catalog_conn() as db:
+        db.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)",
+                   ('UZNF', 'National Investment Fund of the Republic of Uzbekistan', '1059'))
     cash = next(r for r in audited_fund('UZNF', '1059', 'separate') if r['metric_id'] == 'cash')
     imported = dict(cash, source_version='reviewed-import', source_code=None)
     opening = dict(cash, metric_id='cash_begin', source_form='CF', source_code=None,
@@ -232,3 +235,19 @@ def test_partial_import_preserves_unrelated_audited_fund_metrics(monkeypatch, tm
     assert profit['cells']['2025']['value'] == '1403150000'
     assert profit['cells']['2025']['page'] == 8
     assert profit['cells']['2026-09-30']['value'] == '1936551000'
+
+    for view in ('full', 'template', 'overview'):
+        report = service.load('UZNF', form='MSFO', view=view, scope='separate', include_ratios=False)
+        annual = next(c for c in report['columns'] if c['basis'] == 'annual')
+        assert annual['start'] == '2024-12-24'
+        for metric, value, page in (
+            ('unrealized_investment_gain', '1662300000', 8),
+            ('dividend_income', '171535000', 8), ('operating_income', '1833835000', 8),
+            ('operating_expenses', '-203250000', 8), ('profit_before_tax', '1630585000', 8),
+            ('net_income', '1403150000', 8), ('cfo', '32730000', 11),
+        ):
+            cell = next(r['cells']['2025'] for r in report['rows'] if r['metric_id'] == metric)
+            assert (cell['value'], cell['page'], cell['period_start']) == (value, page, '2024-12-24')
+
+        portfolio = next(r['cells']['2025'] for r in report['rows'] if r['metric_id'] == 'financial_assets_fvtpl')
+        assert (portfolio['value'], portfolio['page']) == ('30120689000', 9)
