@@ -40,7 +40,7 @@ def accounting_model(pages):
 
 
 def form_kind(text):
-    header = key(text)
+    header = key(text).replace('отчетобществао', 'отчето')
     if re.search(r'\bcontents\b|содержание', text, re.I):
         return None
     for form, pattern in (
@@ -58,6 +58,8 @@ def form_kind(text):
 def split_row(line):
     # A date header is column context, not a label followed by an amount.
     if re.search(r'\b(?:31|30|1)\s*(?:December|March|June|September|January|декабря|марта|июня|сентября|января)\s*20\d{2}', line, re.I):
+        return None
+    if re.fullmatch(r'\s*(?:за\s+20\d{2}\s*(?:г(?:од[ауы]?)?\.?)?\s*){1,3}', line, re.I):
         return None
     for match in re.finditer(r'\s+(?=[({−\-\d—–])', line):
         label, tail = line[:match.start()].strip(), line[match.end():]

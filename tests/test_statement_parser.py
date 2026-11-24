@@ -576,3 +576,29 @@ def test_uzbekistan_post_2025_net_loss_and_equity_subtotal_are_distinct():
         equity_rows = [r['raw_value'] for r in version['source_rows'] if r['metric_id'] == 'total_equity']
         assert equity_rows == [equity]
     assert statements.cells('(578.549)  —  (24.928.892)', 2) is None
+
+
+def test_orgres_company_statement_uses_printed_comparative_then_primary_columns():
+    # Openinfo filing 3214, page 8. Both the qualifier and column order are printed.
+    pages = {1: 'АО «ORGRES»\nФинансовая отчетность по МСФО', 8: '''ОТЧЕТ ОБЩЕСТВА
+О ПРИБЫЛЯХ И УБЫТКАХ
+ЗА ГОД, ЗАКОНЧИВШИЙСЯ 31 ДЕКАБРЯ 2025 ГОДА
+(В ТЫС. СУМ)
+За 2024г  за 2025
+Прочие операционные расходы  -715 060,00  -275 987,00
+Операционная прибыль или (убыток)  169 952,00  -288 707,00
+Налогооблагаемая прибыль (убыток)  3 274,00  564 912,00
+Налог на прибыль  -15 772,00  0
+Чистая прибыль (убыток)  -12 498,00  564912,00'''}
+    proposals = statements.proposals(pages, {'page_count': 22})
+    by_year = {p['classification']['period_end'][:4]: p for p in proposals}
+    assert set(by_year) == {'2024', '2025'}
+    for year, profit, column in [('2024', -12498, 0), ('2025', 564912, 1)]:
+        proposal = by_year[year]
+        assert proposal['classification']['unit_scale'] == '1000'
+        assert float(proposal['figures']['net_income']['raw_value']) == profit
+        assert validation.validate(proposal, page_count=22)['valid']
+        assert proposal['income_reconciliation']['pretax']['page'] == 8
+        source = next(row for row in proposal['source_rows'] if row['metric_id'] == 'net_income')
+        assert (source['source_form'], source['column'], source['page']) == ('PL', column, 8)
+        assert float(source['raw_value']) == profit

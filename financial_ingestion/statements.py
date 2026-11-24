@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v11'
+VERSION = 'statement-columns-v12'
 
 
 def compact(value):
@@ -27,10 +27,10 @@ LABELS = {
     'cash': r'(?:cashandcashequivalents|денежныесредстваиихэквиваленты)',
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
-    'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы|операционнаяприбыль|прибыльотоперационнойдеятельности)',
+    'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы|операционнаяприбыль|прибыльотоперационнойдеятельности|операционнаяприбыльили\(убыток\))',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
-    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)|чистаяприбыль)',
-    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
+    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)|чистаяприбыль(?:\(убыток\))?)',
+    '_pretax': r'(?:налогооблагаемаяприбыль\(убыток\)|profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
     '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
     '_tax': r'(?:incometax(?:expense|benefit)?|incometax\(expense\)/benefit|\(расход\)/экономияпоналогунаприбыль|расхо[дл]ыпоналогунаприбыль|налогнаприбыль|оценканалогана(?:прибыль|доход\(прибыль\)))',
     '_staff': r'(?:personnelexpenses|staffcosts|расходынаперсонал)',
@@ -187,7 +187,7 @@ def statement_lines(text):
 
 
 def section_kind(text):
-    key = compact(text)
+    key = compact(text).replace('отчетобществао', 'отчето')
     # Notes, cash flows and equity movements may repeat all the same labels.
     # Only the heading preceding the first financial row selects a statement.
     if re.search(r'(?:notesto(?:the)?(?:consolidated)?financial|примечанияк|statementofcashflows|отчетодвиженииденежных|statementofchangesinequity|отчетобизменениях)',key):

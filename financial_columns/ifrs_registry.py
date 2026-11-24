@@ -71,7 +71,7 @@ share_of_profit_associates|Share of profit of associates|Доля в прибы�
 profit_before_tax|Profit before tax|Прибыль до налогообложения
 income_tax|Income tax expense|Расходы по налогу на прибыль
 profit_continuing|Profit from continuing operations|Прибыль от продолжающейся деятельности
-net_income|Profit for the year|Прибыль за год|Прибыль/(убыток) за отчетный год|Прибыль за отчетный год|Убыток за отчетный год|Чистый убыток за год
+net_income|Чистая прибыль (убыток)|Profit for the year|Прибыль за год|Прибыль/(убыток) за отчетный год|Прибыль за отчетный год|Убыток за отчетный год|Чистый убыток за год
 preferred_profit_allocation|Profit allocated to preferred shareholders for the period|Права привилегированных акционеров на прибыль за период
 profit_owners|Profit attributable to owners of the parent|Прибыль, приходящаяся на собственников материнской компании
 profit_ordinary|Profit attributable to ordinary equity holders of the parent|Прибыль, приходящаяся на владельцев обыкновенных акций материнской компании
