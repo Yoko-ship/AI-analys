@@ -251,3 +251,23 @@ def test_partial_import_preserves_unrelated_audited_fund_metrics(monkeypatch, tm
 
         portfolio = next(r['cells']['2025'] for r in report['rows'] if r['metric_id'] == 'financial_assets_fvtpl')
         assert (portfolio['value'], portfolio['page']) == ('30120689000', 9)
+
+
+def test_anor_gross_loans_use_the_filed_note_and_preserve_conflicts():
+    from financial_columns import investor, matrix, observations
+
+    fixture = Path('tests/fixtures/financial_columns/anbk_customer_loans_2025.json')
+    snapshot = json.loads(fixture.read_text())
+    rows = observations.ifrs([snapshot])
+
+    def loans(source):
+        table = matrix.build(source, mode='annual')
+        return investor.field_cells(table, 'loans', 'bs')['2025']
+
+    cell = loans(rows)
+    assert (cell['value'], cell['source_form'], cell['page']) == ('10596145884', 'Notes', 23)
+    note = next(row for row in rows if row['metric_id'] == 'loans_gross')
+    assert loans([dict(note, metric_id='loans_and_finance_leases_gross')])['value'] is None
+    assert loans([row for row in rows if row['source_form'] == 'BS'])['value'] is None
+    conflict = loans([*rows, dict(note, source_form='BS', value='10596145885')])
+    assert conflict['value'] is None and conflict['reason'] == 'CONFLICTING_SOURCE_VALUES'

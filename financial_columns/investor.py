@@ -120,7 +120,12 @@ def field_cells(payload, field, statement, observations=()):
         form = 'PL'
     if statement == 'equity' and field == 'equity':
         form = 'BS'
-    candidates = [r for r in payload['rows'] if r['metric_id'] == metric and r['source_form'] in {form,'DERIVED'}]
+    forms = {form, 'DERIVED'}
+    if statement == 'bs' and field == 'loans':
+        # Banks often disclose the gross portfolio in the notes and present
+        # customer loans after impairment on the face of the balance sheet.
+        forms.add('Notes')
+    candidates = [r for r in payload['rows'] if r['metric_id'] == metric and r['source_form'] in forms]
     cells = {}
     for column in payload['columns']:
         parts = [r['cells'][column['key']] for r in candidates]

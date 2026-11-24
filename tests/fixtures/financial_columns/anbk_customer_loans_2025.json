@@ -1,0 +1,61 @@
+{
+  "id": "ba9f427ae7d47c2f9556b5a826db91c474e152be17f2a55d3cbaff5cf0c435ac",
+  "org_id": "837",
+  "scope": "consolidated",
+  "period_end": "2025-12-31",
+  "payload": {
+    "classification": {
+      "audit_status": "audited",
+      "currency": "UZS",
+      "document_year": 2025,
+      "issuer_evidence": "JSC ANOR BANK consolidated financial statements for the year ended 31 December 2025 together with the independent auditor’s report. Signed by the Chairman and Chief Accountant on 29 June 2026.",
+      "issuer_name": "\"Anor Bank\" AJ",
+      "period_end": "2025-12-31",
+      "period_evidence": "Signed cash flows, profit or loss, and financial position identify separate 2025 and 2024 annual columns.",
+      "period_start": "2025-01-01",
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "standard": "MSFO",
+      "unit_evidence": "Statements on pages 8, 9 and 11 are in thousands of Uzbek Soums.",
+      "unit_scale": "1000"
+    },
+    "source": {
+      "pdf_url": "https://openinfo.uz/media/int_report/34cddf83-0a60-436b-be9b-6452431c88bf.pdf"
+    },
+    "page_count": 49,
+    "figures": {},
+    "normalized_uzs": {},
+    "source_rows": [
+      {
+        "source_form": "BS",
+        "metric_id": "loans_net",
+        "raw_label": "Loans to customers",
+        "raw_value": "10076938114",
+        "page": 8,
+        "kind": "stock",
+        "scope": "consolidated",
+        "unit": "UZS_thousand",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "period_start": null,
+        "period_end": "2025-12-31",
+        "quality": "valid"
+      },
+      {
+        "source_form": "Notes",
+        "metric_id": "loans_gross",
+        "raw_label": "Total loans to customers measured at amortized cost, before allowance for impairment",
+        "raw_value": "10596145884",
+        "page": 23,
+        "kind": "stock",
+        "scope": "consolidated",
+        "unit": "UZS_thousand",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "period_start": "2025-12-31",
+        "period_end": "2025-12-31",
+        "quality": "valid"
+      }
+    ]
+  }
+}

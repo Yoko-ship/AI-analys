@@ -120,6 +120,7 @@ test('IFRS deep link, retry, notes and print remain connected',async({page})=>{
 
 for (const example of [
   {ticker:'BTRL', file:'btrl_ifrs_2025', tab:'PL Profit or loss', field:'tax', value:'-0.33'},
+  {ticker:'ANBK3B', file:'anbk_customer_loans_2025', template:'bank', tab:'BS Balance', field:'loans', value:/10[ ,\u202f\u00a0]?596[.,]15/},
   {ticker:'UZNGP', file:'uzngp_inventory_2025', tab:'BS Balance', field:'inventory', value:'452'},
 ]) test(example.ticker+' reviewed '+example.field+' opens the FY2025 source in the investor statement', async ({page}) => {
   const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
@@ -131,11 +132,11 @@ snapshot = json.loads(Path('tests/fixtures/financial_columns', sys.argv[1]+'.jso
 rows = observations.ifrs([snapshot])
 table = matrix.build(rows, mode='annual')
 payload = dict(**table, ok=True, ticker=sys.argv[2], issuer_id=snapshot['org_id'], issuer_name=sys.argv[2],
-               standard='MSFO', template='industry', scope='separate', available_scopes=['separate'],
+               standard='MSFO', template=sys.argv[3], scope=snapshot['scope'], available_scopes=[snapshot['scope']],
                unit='UZS_thousand', freq='annual', issues=[], ratios=[], published_ratios=[], source_forms=[],
                coverage={'issues':[]}, shareholders=[])
 print(json.dumps(investor.project(payload, rows)))
-`,example.file,example.ticker], {encoding:'utf8'}));
+`,example.file,example.ticker,example.template || 'industry'], {encoding:'utf8'}));
   await setup(page);
   await page.route('**/api/company/'+example.ticker+'/financials/columns?**', route => route.fulfill({json:filing}));
   await page.goto('/company/'+example.ticker+'?tab=financials&standard=MSFO');
