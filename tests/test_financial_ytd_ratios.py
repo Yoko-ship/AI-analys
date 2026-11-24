@@ -636,3 +636,69 @@ def test_uznf_interim_book_and_closing_eps_use_registered_converted_shares(tmp_p
     with store.transaction() as conn:
         conn.execute('UPDATE ingest_sources SET metadata_json=? WHERE id=?',(store.encoded({**meta,'status':'withdrawn'}),src))
     assert 'book_value_per_share' not in read()
+
+
+@pytest.mark.parametrize('period', ['2025Q4', '2025'])
+def test_uzas_year_end_filing_request_retains_the_selected_document(monkeypatch, period):
+    from server.terminal import service
+    from financial_columns import source_store
+    import sector_report_service
+
+    company = {'ticker': 'UZAS', 'tickers': ['UZAS'], 'name': 'UZAS', 'org_id': '669'}
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr('issuer_financials.resolve_issuer', lambda t: {**company, 'id': '669'})
+    monkeypatch.setattr('financial_columns.service.organization_kind', lambda *a, **kw: 'insurance')
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [])
+    monkeypatch.setattr('catalogue.filings.get_report_urls', lambda t, f, year, q: {
+        'excel_url': f'https://new-api.openinfo.uz/api/v2/reports/insurance/{"quarter/699" if q else "annual"}/'})
+    seen = []
+    def report(issuer, standard, selected, scope, lang, **opts):
+        seen.append(selected)
+        return {'standard': standard, 'scope': scope, 'period': selected, 'status': 'stale', 'ratios': []}
+    monkeypatch.setattr(sector_report_service, 'sector_report', report)
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda result: result)
+    row = service.filing_metrics('separate', period, 'UZAS', 0, 1)['rows'][0]
+    assert seen == [period]
+    assert row['period'] == period and row['status'] == 'stale'
+    assert row['metrics']['roce']['reason_code'] == 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE'
+
+
+def test_year_end_returns_use_each_filings_own_source_version(monkeypatch, tmp_path):
+    from financial_columns import source_store, service
+    from catalogue import filings
+    import sqlite3
+    docs = json.loads(Path('tests/fixtures/financial_columns/abkz_roce.json').read_text())
+    annual = next(d for d in docs if d['period_end'] == '2025-12-31')
+    quarter = deepcopy(annual)
+    ay, q4 = 'https://example.test/annual/1', 'https://example.test/quarter/4'
+    for doc, url, version in [(annual, ay, 'annual'), (quarter, q4, 'quarter')]:
+        doc.update(source_forms=[{'source_url': url}], source_version=version)
+        for row in doc['rows']:
+            row['source_url'] = url
+    for row in quarter['rows']:
+        if row.get('metric_id') == 'operating_income':
+            row['current']['value'] = str(Decimal(row['current']['value']) * 2)
+            row['current']['raw_value'] = [2 * n for n in row['current']['raw_value']]
+    def conn():
+        c = sqlite3.connect(tmp_path / 'forms.db')
+        c.row_factory = sqlite3.Row
+        return c
+    monkeypatch.setattr(source_store, 'get_catalog_conn', conn)
+    company = {'ticker': 'ABKZ', 'name': 'ABKZ', 'org_id': annual['issuer_id']}
+    end = annual['period_end']
+    with conn() as c:
+        source_store._schema(c)
+        for doc in [quarter, annual]:
+            c.execute('INSERT INTO financial_form_versions VALUES (?,?,?,?,?,?,?)',
+                      (doc['source_version'], company['org_id'], 'NSBU', 'separate', end, json.dumps(doc), '2026-01-31'))
+        c.execute('INSERT INTO financial_form_heads VALUES (?,?,?,?,?)',
+                  (company['org_id'], 'NSBU', 'separate', end, 'annual'))
+    monkeypatch.setattr(filings, 'get_report_urls', lambda t, f, year, q: {'excel_url': q4 if q else ay})
+    monkeypatch.setattr(service, 'organization_kind', lambda *a, **kw: 'industry')
+    monkeypatch.setattr('data_quality.held_public_periods', lambda *a: set())
+    year_period, year = service.filing_roce(company, end, 'separate', '2025')
+    quarter_period, quarter_cell = service.filing_roce(company, end, 'separate', '2025Q4')
+    assert (year_period, year['basis']) == ('2025', 'annual')
+    assert (quarter_period, quarter_cell['basis']) == ('2025Q4', 'ytd')
+    assert year['value'] == pytest.approx(14.43, abs=.005)
+    assert quarter_cell['value'] == pytest.approx(year['value'] * 2)

@@ -479,7 +479,7 @@ def filing_metrics(scope, period, search, offset, limit):
             ticker = company['ticker']
             item = {'ticker':ticker, 'period':None, 'metrics':{}, 'status':'no_source'}
             try:
-                item['period'], item['metrics']['roce'] = filing_roce(company, period_end(period), scope)
+                item['period'], item['metrics']['roce'] = filing_roce(company, period_end(period), scope, period)
                 if item['metrics']['roce'].get('value') is not None:
                     item['status'] = 'available'
                 issuer = resolve_issuer(ticker)

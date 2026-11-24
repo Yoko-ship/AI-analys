@@ -113,6 +113,28 @@ def read(issuer_id, *, standard, scope, period_end=None, latest=False):
         c.close()
 
 
+def read_filing_version(issuer_id, scope, end, urls):
+    """Annual and fourth-quarter forms can share a closing date and have different figures."""
+    required = {urls.get('excel_url'), urls.get('excel_url_form1')} - {None, ''}
+    if not required:
+        return []
+    c = get_catalog_conn()
+    try:
+        if 'financial_form_versions' not in dbx.tables(c):
+            return []
+        versions = c.execute('SELECT payload_json FROM financial_form_versions WHERE issuer_id=? '
+                             'AND standard=? AND scope=? AND period_end=? ORDER BY recorded_at DESC',
+                             (str(issuer_id), 'NSBU', scope, end))
+        for row in versions:
+            doc = json.loads(row['payload_json'])
+            sources = {form.get('source_url') for form in doc.get('source_forms', [])}
+            if sources == required and (not urls.get('published_at') or urls['published_at'] == doc.get('published_at')):
+                return [doc]
+        return []
+    finally:
+        c.close()
+
+
 def prior_dates(issuer_id, *, standard, scope, end):
     c = get_catalog_conn()
     try:

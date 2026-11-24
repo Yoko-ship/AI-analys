@@ -27,24 +27,27 @@ def _latest_separate_end(ticker):
     return max(dates, default=None)
 
 
-def _check_filing_rows(source_rows, ticker, form):
+def _check_filing_rows(source_rows, ticker, form, selected_period=None):
     import data_quality
     held = data_quality.held_public_periods(ticker, form)
     for row in source_rows:
         end = row['period_end']
         period = end[:4] if end.endswith('-12-31') else end[:4] + 'Q' + str(int(end[5:7]) // 3)
+        if selected_period == period + 'Q4' and row.get('role') == 'PRIMARY':
+            period = selected_period
         if period in held:
             row.update(value=None, quality='blocked', reason='UNDER_REVIEW')
     return observations.check(source_rows)
 
 
-def _filing_roce_cell(docs, ticker, template, end):
+def _filing_roce_cell(docs, ticker, template, end, period=None):
     rows = observations.nsbu(docs)
-    _check_filing_rows(rows, ticker, 'NSBU')
-    return capital_returns.roce(rows, template=template, end=end, basis='annual' if end.endswith('-12-31') else 'ytd')
+    _check_filing_rows(rows, ticker, 'NSBU', period)
+    basis = 'annual' if end.endswith('-12-31') and not (period or '').endswith('Q4') else 'ytd'
+    return capital_returns.roce(rows, template=template, end=end, basis=basis)
 
 
-def filing_roce(company, end, scope):
+def filing_roce(company, end, scope, requested_period=None):
     """The screener uses the same filed YTD/FY result as the ratio table."""
     latest = end is None
     ticker = company['ticker']
@@ -59,8 +62,18 @@ def filing_roce(company, end, scope):
     if not end:
         return None, {'value': None, 'reason_code': 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE'
                       if template in capital_returns.FINANCIAL else 'ROCE_INPUTS_MISSING', 'unit': 'percent'}
-    cell = _filing_roce_cell(docs, ticker, template, end)
-    period = end[:4] if end.endswith('-12-31') else f'{end[:4]}Q{int(end[5:7]) // 3}'
+    period = requested_period or (end[:4] if end.endswith('-12-31') else f'{end[:4]}Q{int(end[5:7]) // 3}')
+    if end.endswith('-12-31'):
+        from catalogue.filings import get_report_urls
+        year = int(end[:4])
+        fourth = get_report_urls(ticker, 'NSBU', year, 4)
+        if fourth or period.endswith('Q4'):
+            annual = get_report_urls(ticker, 'NSBU', year, 0)
+            if latest and fourth and not annual and scope == 'separate':
+                period = f'{year}Q4'
+            urls = fourth if period.endswith('Q4') else annual
+            docs = source_store.read_filing_version(company['org_id'], scope, end, urls or {})
+    cell = _filing_roce_cell(docs, ticker, template, end, period)
     metric = {'value': float(cell['value']) if cell['value'] is not None else None, 'raw_result': cell['value'],
               'unit': cell['unit'], 'reason_code': cell['reason'], 'quality': cell['quality'], 'basis': cell['basis'],
               'balance_basis': cell['balance_basis'], 'formula': cell['formula']}
