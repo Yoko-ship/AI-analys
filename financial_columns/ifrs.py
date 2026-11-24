@@ -1,6 +1,7 @@
 """Retain all IFRS source forms; map only exact, dated, unambiguous cells."""
 import re
 from datetime import date, timedelta
+from decimal import Decimal
 
 from .ifrs_registry import DEFINITIONS
 
@@ -58,6 +59,31 @@ def split_row(line):
     return None
 
 
+def statement_scope(header, text, form, columns):
+    from financial_ingestion.statements import cells
+
+    if re.search(r'\bunconsolidated\b|\bнеконсолидирован', header, re.I):
+        return 'separate'
+    if re.search(r'\bconsolidated\b|\bконсолидирован', header, re.I):
+        return 'consolidated'
+    if re.search(r'\bseparate\b|\bindividual\b|\bотдельн|\bиндивидуальн', header, re.I):
+        return 'separate'
+    if form not in {'BS', 'PL', 'CF', 'Equity'}:
+        return 'unknown'
+    if re.search(r'подписан[а-я]*\s+от\s+имени\s+руководства\s+группы\b'
+                 r"|signed\s+on\s+behalf\s+of\s+(?:the\s+)?group(?:['’]s)?\s+management\b",
+                 text, re.I):
+        return 'consolidated'
+    if form in {'BS', 'PL'} and columns:
+        for line in text.splitlines():
+            parts = split_row(line)
+            if parts and metric(parts[0], form) in {'nci', 'profit_nci'}:
+                amounts = cells(parts[1], len(columns))
+                if amounts and any(amount is not None and Decimal(amount) != 0 for amount in amounts):
+                    return 'consolidated'
+    return 'unknown'
+
+
 def extract(pages, *, page_count):
     from financial_ingestion import statements as parser
     forms, rows, issues = [], [], []
@@ -73,12 +99,11 @@ def extract(pages, *, page_count):
         if form is None:
             continue
         previous_form = form
-        scope = ('consolidated' if re.search(r'consolidated|консолидирован', header, re.I) else
-                 'separate' if re.search(r'separate|individual|отдельн|индивидуальн', header, re.I) else 'unknown')
+        cols = parser.columns(header)
+        scope = statement_scope(header, text, form, cols)
         forms.append({'form': form, 'page': number, 'text': text, 'scope': scope})
         # Dates must appear in the table header. Narrative note dates are not
         # sufficient to attach every number on that page to a reporting period.
-        cols = parser.columns(header)
         if not cols and form != 'Notes':
             issues.append(f'TABLE_COLUMNS_UNRESOLVED:{number}')
             continue

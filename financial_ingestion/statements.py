@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v9'
+VERSION = 'statement-columns-v10'
 
 
 def compact(value):
@@ -367,7 +367,7 @@ def report_flow_contexts(pages):
 
 def proposals(pages, evidence):
     """Extract all supported columns and keep incompatible scopes separate."""
-    from financial_columns.ifrs import extract as extract_source_forms
+    from financial_columns.ifrs import extract as extract_source_forms, statement_scope
     from financial_columns.ownership import extract as extract_shareholders
     source = extract_source_forms(pages, page_count=evidence.get('page_count', len(pages)))
     shareholders = extract_shareholders(pages)
@@ -432,9 +432,9 @@ def proposals(pages, evidence):
             unit_header = header + '\nUnit carried from consistent adjacent statement header'
         else:
             unit_header = header
-        # Unqualified financial statements describe the reporting entity;
-        # consolidation must be stated in the heading, not a subsidiary note.
-        scope='consolidated' if re.search(r'consolidated|консолидирован',header,re.I) else 'separate'
+        scope = statement_scope(header, text, 'BS' if kind == 'balance' else 'PL', cols)
+        if scope == 'unknown':
+            scope = 'separate'
         document_year=max(year for year,end in cols)
         restated=bool(re.search(r'restated|пересчитан|пересмотрен|скорректирован',header,re.I))
         for column_index,(year,end) in enumerate(cols):

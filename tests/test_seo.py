@@ -247,6 +247,15 @@ def test_bond_page(tmp_path, monkeypatch):
     assert "<title>Облигация ACMT1B2 — «AGAT CREDIT»: купон, доходность, цена | UZStock</title>" in text
     assert "100 000,01 сум" in text and "100,00% от номинала" in text
     assert "28,00% годовых" in text and "23.07.2027" in text and "27,40%" in text
+    # Bond-only issuers also have an issuer financials tab at /company/.
+    _fake_company(monkeypatch)
+    async def bond_info(ticker, lang):
+        return {"security": {"ticker": ticker, "type": "bond", "company_name": "AGAT CREDIT"}}
+    monkeypatch.setattr(company_routes, "api_securities_info", bond_info)
+    issuer_tab = client.get("/company/ACMT1B2?tab=financials&standard=MSFO")
+    assert issuer_tab.status_code == 200
+    assert '<link rel="canonical" href="https://uzstock.uz/bond/ACMT1B2" />' in issuer_tab.text
+    assert "28,00% годовых" in issuer_tab.text
     assert _is_not_found(client.get("/bond/NOPE1B1"))
 
     # An empty board cannot tell a missing bond from a failed read.

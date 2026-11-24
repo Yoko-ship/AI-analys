@@ -521,7 +521,11 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
     sec = (data["info"] or {}).get("security") or {}
     wiki = (data["info"] or {}).get("wiki") or {}
     if str(sec.get("type") or "") == "bond":
-        return None
+        try:
+            return await _bond_page(ticker, lang)
+        except _Missing:
+            # The issuer is known even if its security is absent from the bond board.
+            return None
     tx = _TX[lang]
     name = _clean_name(sec.get("company_name") or sec.get("security_name") or ticker)
     preferred = sec.get("share_type") == "preferred" or sec.get("is_preferred") is True

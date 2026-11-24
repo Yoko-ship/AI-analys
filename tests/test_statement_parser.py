@@ -60,6 +60,39 @@ def test_scope_and_dates_are_not_guessed_from_catalog(pages):
     assert [p['classification']['period_end'] for p in result] == ['2024-12-31', '2023-12-31']
 
 
+def test_utga_2018_group_scope_from_statement_amounts_and_signed_approval():
+    # O'ztransgaz 2018 IFRS, Openinfo's Заключение_2018.pdf, pages 3–5.
+    heading = 'МСФО\nв тысячах УЗС\n31 декабря 2018    31 декабря 2017\n'
+    pages = {
+        3: 'Отчет о финансовом положении\n' + heading
+           + 'ИТОГО АКТИВЫ    20,520,789,983    18,536,479,769\n'
+           + 'Неконтролирующая доля участия    106, 763,686    107,659,609',
+        5: 'Отчет о совокупном доходе за 2018 г.\n' + heading
+           + 'Прибыль за год    (3,020,089,954)    (1,942,197,892)\n'
+           + 'Утверждено и подписано от имени  Руководства Группы 30 апреля 2019 года.',
+    }
+    current, previous = parse(pages)
+    for version in (current, previous):
+        assert version['classification']['scope'] == 'consolidated'
+        assert {r['scope'] for r in version['source_rows']} == {'consolidated'}
+        assert set(version['figures']) >= {'total_assets', 'net_income'}
+    assert current['figures']['net_income']['raw_value'] == '-3020089954'
+    assert previous['figures']['total_assets']['raw_value'] == '18536479769'
+
+
+@pytest.mark.parametrize('title,nci', [
+    ('Separate statement of financial position', 'Non-controlling interests    19    11'),
+    ('Unconsolidated statement of financial position', 'Non-controlling interests    19    11'),
+    ('Statement of financial position', 'Non-controlling interests    —    0'),
+    ('Statement of financial position', 'Changes in non-controlling interests in a subsidiary    19    11'),
+])
+def test_separate_scope_survives_notes_and_inapplicable_nci_templates(pages, title, nci):
+    balance = pages[7].replace('Consolidated statement of financial position', title)
+    parsed = parse({1: pages[1], 7: balance + '\n' + nci,
+                    9: 'Notes to the consolidated financial statements\nNon-controlling interests    19    11'})
+    assert {v['classification']['scope'] for v in parsed} == {'separate'}
+
+
 def test_reversed_columns_retain_their_actual_years(pages):
     pages = {n: text.replace('2024', 'XXXX').replace('2023', '2024').replace('XXXX', '2023') for n, text in pages.items()}
     first, second = parse(pages)
