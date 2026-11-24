@@ -126,12 +126,17 @@ def field_cells(payload, field, statement, observations=()):
         # customer loans after impairment on the face of the balance sheet.
         forms.add('Notes')
     candidates = [r for r in payload['rows'] if r['metric_id'] == metric and r['source_form'] in forms]
+    cash_addbacks = [r for r in payload['rows'] if r['source_form'] == 'CF'
+                     and r['metric_id'] == 'depreciation_amortization_cf'] if (statement, field) == ('cf', 'depreciation') else []
     cells = {}
     for column in payload['columns']:
         parts = [r['cells'][column['key']] for r in candidates]
         # The matrix inserts an empty cell for a source row filed in another period.
         # Keep actual validation failures available for conflict checks.
         parts = [p for p in parts if p.get('reason') != 'SOURCE_VALUE_MISSING' or p.get('quality') != 'missing']
+        if cash_addbacks:
+            filed = [r['cells'][column['key']] for r in cash_addbacks]
+            parts = [p for p in filed if p.get('quality') != 'missing'] or parts
         if len(parts) == 1:
             cells[column['key']] = parts[0]
         elif parts and len({(p.get('value'), p.get('quality'), p.get('unit'), p.get('scope')) for p in parts}) > 1:

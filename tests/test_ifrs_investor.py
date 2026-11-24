@@ -271,3 +271,48 @@ def test_anor_gross_loans_use_the_filed_note_and_preserve_conflicts():
     assert loans([row for row in rows if row['source_form'] == 'BS'])['value'] is None
     conflict = loans([*rows, dict(note, source_form='BS', value='10596145885')])
     assert conflict['value'] is None and conflict['reason'] == 'CONFLICTING_SOURCE_VALUES'
+
+
+def test_urts_calculated_ebitda_and_margin_use_cash_flow_addback():
+    from decimal import Decimal
+    from financial_columns import derived, ratios
+
+    filed = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
+    actual = derived.enrich(filed, template='industry')
+    ebitda = next(r for r in actual if r['metric_id'] == 'ebitda')
+    assert ebitda['value'] == '213279768'
+    assert [(p['source_form'], p['page']) for p in ebitda['components']] == [('PL', 2), ('CF', 4)]
+    margin = next(r for r in ratios.calculate(actual, ticker='URTS', template='industry',
+                  end='2025-12-31', basis='annual', enriched=True) if r['metric_id'] == 'ebitda_margin')
+    assert Decimal(margin['value']) == Decimal('213279768') / 446493601 * 100
+    assert margin['components'][0]['formula'] == ebitda['formula']
+
+
+@pytest.mark.parametrize('change', [
+    {'scope': 'separate'}, {'period_end': '2024-12-31'}, {'source_version': 'another-report'},
+    {'currency': 'USD'}, {'unit': 'shares'}, {'kind': 'stock'}, {'quality': 'blocked'},
+    {'metric_id': 'depreciation_impairment'}, {'value': '-8897879'},
+])
+def test_ebitda_from_cash_flow_requires_matching_report_and_complete_addback(change):
+    from financial_columns.derived import enrich
+
+    rows = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
+    for row in rows:
+        if row['source_form'] == 'CF':
+            row.update(change)
+    assert not any(r['metric_id'] == 'ebitda' for r in enrich(rows, template='industry'))
+
+
+def test_cash_flow_depreciation_annotation_links_to_the_filed_adjustment():
+    from financial_columns import investor, matrix
+    rows = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
+    cell = investor.field_cells(matrix.build(rows, mode='annual'), 'depreciation', 'cf')['2025']
+    assert (cell['value'], cell['source_form'], cell['page']) == ('8897879', 'CF', 4)
+
+
+@pytest.mark.parametrize('metric,amount', [('discontinued_operations_profit', '1200'), ('depreciation_amortization', '-500')])
+def test_ebitda_does_not_override_a_different_profit_perimeter_or_disagreeing_charge(metric, amount):
+    from financial_columns.derived import enrich
+    rows = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
+    rows.append({**rows[0], 'metric_id': metric, 'value': amount})
+    assert not any(r['metric_id'] == 'ebitda' for r in enrich(rows, template='industry'))

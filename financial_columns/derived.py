@@ -6,6 +6,36 @@ from .matrix import choose
 from .periods import CONTEXT
 
 
+def _cash_flow_ebitda_inputs(rows):
+    """Pair operating profit with the full D&A addback from the same filing."""
+    if not rows[0].get('source_version'):
+        return []
+    profit = []
+    addbacks = []
+    for row in rows:
+        form, metric = row.get('source_form'), row.get('metric_id')
+        if form == 'PL':
+            if metric == 'depreciation_amortization':
+                # The investor statement already uses the directly filed charge.
+                return []
+            if metric in {'discontinued_operations_profit', 'profit_discontinued_operations'}:
+                if row.get('value') is None or Decimal(row['value']) != 0:
+                    return []
+            if metric == 'operating_income':
+                profit.append(row)
+        elif form == 'CF' and metric == 'depreciation_amortization_cf':
+            if row.get('value') is None or Decimal(row['value']) < 0:
+                return []
+            addbacks.append(row)
+    inputs = profit + addbacks
+    units = {(r.get('currency'), r.get('unit_scale')) for r in inputs}
+    if not profit or not addbacks or len(units) != 1:
+        return []
+    if any(r.get('unit') != 'UZS_thousand' or not r.get('currency') or not r.get('unit_scale') for r in inputs):
+        return []
+    return inputs
+
+
 def enrich(observations, *, template=None):
     result = list(observations)
     groups = defaultdict(list)
@@ -27,6 +57,12 @@ def enrich(observations, *, template=None):
                            'value': str(sum(Decimal(p['value']) * coefficient for p, (_, coefficient) in zip(parts, terms))),
                            'components': parts, 'formula': formula, 'origin': 'UZStock_calculated',
                            'unit': unit, 'quality': 'warn' if any(p['quality'] == 'warn' for p in parts) else 'valid'})
+
+        if standard == 'MSFO' and 'CF' in forms and rows[0].get('kind') == 'flow':
+            inputs = _cash_flow_ebitda_inputs(rows)
+            if inputs:
+                add('ebitda', 'EBITDA', [('operating_income', 1), ('depreciation_amortization_cf', 1)],
+                    'operating profit + depreciation and amortization from operating cash flows', inputs=inputs)
 
         if standard == 'NSBU' and 'F1' in forms:
             fields = ['bank_borrowings_long', 'other_borrowings_long', 'bank_borrowings_short',

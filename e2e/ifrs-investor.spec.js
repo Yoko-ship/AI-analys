@@ -238,3 +238,25 @@ with tempfile.TemporaryDirectory() as scratch:
     await expect(card.locator('.investor-number')).toHaveText(value);
   }
 });
+
+test('URTS shows the EBITDA margin calculated from its income and cash flow statements', async ({page}) => {
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const filing = JSON.parse(execFileSync(python, ['-c', `
+import json, os, tempfile
+from pathlib import Path
+from unittest.mock import patch
+from financial_columns import service
+rows = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
+with tempfile.TemporaryDirectory() as scratch:
+    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
+    with patch.object(service, 'organization_kind', return_value='industry'), patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['consolidated']), patch.object(service.observations, 'ifrs', return_value=rows):
+        print(json.dumps(service.load('URTS', form='MSFO', view='investor', scope='consolidated', freq='annual')))
+`], {encoding:'utf8'}));
+  await setup(page);
+  await page.route('**/api/company/URTS/financials/columns?**', route => route.fulfill({json:filing}));
+  await page.goto('/company/URTS?tab=financials&standard=MSFO');
+  const panel = page.getByTestId('ifrs-investor');
+  await panel.getByRole('tab', {name:'RAT Ratios', exact:true}).click();
+  const margin = panel.locator('.investor-ratios article').filter({hasText:'EBITDA margin'});
+  await expect(margin.locator('.investor-number')).toHaveText('47.77%');
+});

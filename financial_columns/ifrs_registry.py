@@ -110,7 +110,8 @@ insurance_expense_nonoverlap|Acquisition and administrative expenses excluding c
 dividend_income|Dividend income|Дивидендный доход
 realized_investment_gain|Realised gain on investments|Реализованная прибыль от инвестиций
 unrealized_investment_gain|Unrealised gain on investments|Нереализованная прибыль от инвестиций''',
-    'CF': '''cfo|Net cash from operating activities|Чистые денежные средства от операционной деятельности
+    'CF': '''depreciation_amortization_cf|Depreciation and amortisation|Depreciation and amortization|Износ и амортизация|Износ и амортизацию
+cfo|Net cash from operating activities|Чистые денежные средства от операционной деятельности
 cfi|Net cash used in investing activities|Чистые денежные средства, использованные в инвестиционной деятельности
 cff|Net cash from financing activities|Чистые денежные средства от финансовой деятельности
 interest_received|Interest received|Проценты полученные

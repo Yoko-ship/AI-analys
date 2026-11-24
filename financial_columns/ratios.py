@@ -119,6 +119,9 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     ratio('roa', 'ROA', flow('net_income'), [point('total_assets', start), point('total_assets', end)],
           factor=Decimal(100), formula='net_income / average(total_assets) × 100', unit='percent', flow_ratio=True, annualize=True)
     corporate = template not in {'bank', 'insurance', 'fund', 'financial', 'microfinance', 'leasing'}
+    if template not in {'bank', 'insurance', 'fund'} and any(r.get('standard') == 'MSFO' for r in observations):
+        ratio('ebitda_margin', 'EBITDA margin', flow('ebitda'), [flow('revenue')],
+              factor=Decimal(100), formula='EBITDA / revenue × 100', unit='percent', flow_ratio=True)
     if any(r.get('source_form') == 'F2' and r.get('standard') == 'NSBU' for r in observations):
         margin = ratio('gross_margin', 'Gross margin', flow('gross_profit', _gross_profit_for_margin(by_metric)), [flow('revenue')],
                        factor=Decimal(100), formula='gross_profit / revenue × 100', unit='percent', flow_ratio=True,
