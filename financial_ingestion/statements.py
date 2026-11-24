@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v13'
+VERSION = 'statement-columns-v14'
 
 
 def compact(value):

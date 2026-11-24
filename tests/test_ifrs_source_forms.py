@@ -315,3 +315,49 @@ def test_kasu_statement_pages_get_a_full_pass_before_audit_or_retries(monkeypatc
     assert [attempt['page'] for attempt in first] == [7, 6]
     assert all(attempt['scale'] == 3 and not attempt['crop_margins'] for attempt in first)
     assert '338 699 936' in pages[6]
+
+
+def test_infb_annual_bank_assets_and_funding_have_distinct_statement_metrics():
+    # Openinfo annual 30701, signed consolidated balance sheet, PDF page 8.
+    text = """Консолидированный отчет о финансовом положении
+31 декабря 2025 года    31 декабря 2024 года
+(в млн УЗС)
+Средства в других банках    7    161 989    33 060
+Инвестиционные ценные бумаги    9    557 031    645 292
+Предоплата текущих обязательств по налогу на прибыль    29 687    5 280
+Отложенные налоговые активы    24    54 840    49 324
+Активы для продажи    10    78 878    82 509
+Средства других банков    13    647 619    681 080
+Прочие заемные средства    15    748 141    568 619"""
+    rows = ifrs.extract({8: text}, page_count=12)['rows']
+    expected = {
+        'bank_balances': ('161989', '33060'), 'bank_funding': ('647619', '681080'),
+        'borrowings': ('748141', '568619'), 'debt_equity_investments': ('557031', '645292'),
+        'current_tax_assets': ('29687', '5280'), 'deferred_tax_assets': ('54840', '49324'),
+        'assets_held_for_sale': ('78878', '82509'),
+    }
+    for metric_id, values in expected.items():
+        matches = [row for row in rows if row['metric_id'] == metric_id]
+        assert [(r['period_end'], r['raw_value']) for r in matches] == list(zip(
+            ('2025-12-31', '2024-12-31'), values))
+        assert all(r['scope'] == 'consolidated' and r['quality'] == 'valid' and
+                   r['unit_scale'] == '1000000' and r['page'] == 8 for r in matches)
+    assert ifrs.metric('Средства в других банках', 'CF') is None
+    assert ifrs.metric('Инвестиционные ценные бумаги', 'BS') != 'debt_securities'
+
+
+def test_retained_bank_rows_resolve_for_template_without_overwriting_the_reviewed_source():
+    from financial_columns.observations import canonical_ifrs_metric
+
+    original = {'standard': 'MSFO', 'source_form': 'BS', 'metric_id': None,
+                'raw_label': 'Средства в других банках', 'value': '161989000',
+                'source_version': 'original', 'page': 8, 'quality': 'valid'}
+    assert canonical_ifrs_metric(original) == {**original, 'metric_id': 'bank_balances'}
+    assert original['metric_id'] is None
+    for legacy, current in [('issued_debt', 'debt_securities_issued'), ('other_borrowings', 'borrowings')]:
+        old = {**original, 'metric_id': legacy, 'raw_label': ''}
+        assert canonical_ifrs_metric(old) == {**old, 'metric_id': current, 'source_metric_id': legacy}
+        cash_flow = {**old, 'source_form': 'CF'}
+        assert canonical_ifrs_metric(cash_flow) == cash_flow
+    domestic = {**original, 'standard': 'NSBU'}
+    assert canonical_ifrs_metric(domestic) == domestic

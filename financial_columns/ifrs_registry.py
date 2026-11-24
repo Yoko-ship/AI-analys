@@ -42,7 +42,14 @@ total_equity_liabilities|Total liabilities and equity|Итого обязате�
 loans_gross|Gross loans to customers|Кредиты клиентам брутто
 loans_net|Loans and advances to customers|Кредиты и авансы клиентам
 customer_funds|Customer accounts|Средства клиентов
-bank_funding|Due to banks|Средства банков
+bank_balances|Due from other banks|Средства в других банках
+bank_funding|Due to banks|Due to other banks|Средства банков|Средства других банков
+borrowings|Other borrowed funds|Прочие заемные средства
+debt_equity_investments|Investment securities|Инвестиционные ценные бумаги
+current_tax_assets|Current income tax prepayments|Предоплата текущих обязательств по налогу на прибыль
+deferred_tax_assets|Deferred tax assets|Отложенные налоговые активы
+assets_held_for_sale|Assets held for sale|Активы для продажи
+debt_securities_issued|Debt securities in issue|Выпущенные долговые ценные бумаги
 subordinated_debt|Subordinated debt|Субординированный долг
 net_lease_investment|Net investment in finance leases|Чистые инвестиции в финансовую аренду
 lease_receivables|Finance lease receivables|Дебиторская задолженность по финансовой аренде

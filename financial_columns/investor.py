@@ -63,11 +63,8 @@ FORM = {'pl':'PL', 'bs':'BS', 'cf':'CF', 'equity':'Equity'}
 
 def enrich(observations):
     """Only explicit, complete arithmetic; never approximate a missing item."""
-    from .ifrs import metric
-    # Older approved imports retain unmapped source lines. Resolve only exact
-    # aliases, preserving their value, dates, review status and provenance.
-    observations=[{**r,'metric_id':metric(r.get('raw_label',''),r.get('source_form'))}
-                  if r.get('standard')=='MSFO' and not r.get('metric_id') else r for r in observations]
+    from .observations import canonical_ifrs_metric
+    observations = [canonical_ifrs_metric(row) for row in observations]
     result=list(observations)
     groups=defaultdict(list)
     for row in observations:

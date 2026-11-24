@@ -105,10 +105,26 @@ def _reconciled_income_rows(payload):
                'period_start': meta['period_start'], 'period_end': end, 'quality': 'valid'}
 
 
+_LEGACY_BALANCE_METRICS = {
+    'inventories': 'inventory',
+    'issued_debt': 'debt_securities_issued',
+    'other_borrowings': 'borrowings',
+}
+
+
 def canonical_ifrs_metric(row):
-    # Some reviewed balance sheets use the legacy plural identifier.
-    if row.get('metric_id') == 'inventories' and row.get('source_form') == 'BS' and row.get('standard') == 'MSFO':
-        return {**row, 'metric_id': 'inventory', 'source_metric_id': 'inventories'}
+    """Keep the reviewed source while resolving exact labels for display and ratios."""
+    if row.get('standard') != 'MSFO':
+        return row
+    metric_id = row.get('metric_id')
+    form = row.get('source_form')
+    if form == 'BS' and metric_id in _LEGACY_BALANCE_METRICS:
+        return {**row, 'metric_id': _LEGACY_BALANCE_METRICS[metric_id], 'source_metric_id': metric_id}
+    if not metric_id:
+        from .ifrs import metric
+        resolved = metric(row.get('raw_label') or '', form)
+        if resolved:
+            return {**row, 'metric_id': resolved}
     return row
 
 
