@@ -262,7 +262,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         source_rows = enrich(source_rows)
     filed_end = _latest_separate_end(ticker) if form == 'NSBU' and scope == 'separate' and include_ratios and view == 'template' else None
     table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'}, filed_end=filed_end,
-                         interim_ttm=view == 'investor',
+                         annual_history=view == 'investor', interim_ttm=view == 'investor',
                          recent_ttm=include_ratios and view == 'template' and form == 'NSBU' and template not in capital_returns.FINANCIAL)
     ratio_rows = []
     for column in table['columns'] if include_ratios else []:

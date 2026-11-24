@@ -269,3 +269,49 @@ def test_uzas_opening_equity_validates_only_at_the_start_of_its_equity_statement
     for invalid in ({'period_end': '2024-12-30'}, {'kind': 'flow'}, {'source_form': 'PL'}):
         proposal['source_rows'] = [{**row, **invalid}]
         assert 'SOURCE_ROW_VALUE_INVALID' in validation.validate(proposal, page_count=7)['errors']
+
+
+def test_kasu_statement_pages_get_a_full_pass_before_audit_or_retries(monkeypatch):
+    """Openinfo insurance report 312, pages 1, 6, 7 of the 2025 annual PDF."""
+    import io
+    from pathlib import Path
+    from types import SimpleNamespace
+    from reportlab.pdfgen import canvas
+    from financial_ingestion import extract
+
+    survey = {
+        1: 'АУДИТОРСКОЕ ЗАКЛЮЧЕНИЕ НЕЗАВИСИМОГО АУДИТОРА.\nстандартами финансовой отчётности (МСФО).\n'
+           'n  января 2024 года, вступительный отчёт о финансовом положении представлен по состоянию на 31 декабря',
+        6: 'Финансовая отчетность no МСФО\nОТЧЕТ О ФИНАНСОВОМ ПОЛОЖЕНИИ\n'
+           'на 31 декабря 2025 года, 31 декабря 2024 года и 31 декабря 2023 года (в тысячах узбекских сум)',
+        7: 'Финансовая отчетность no МСФО\nОТЧЕТ О ПРИБЫЛИ ИЛИ УБЫТКЕ И ПРОЧЕМ СОВОКУПНОМ ДОХОДЕ\n'
+           'за год, закончившийся 31 декабря 2025 года\nПРИБЫЛЬ ЗА ГОД  5208 827  1750 968',
+    }
+    output = io.BytesIO()
+    pdf = canvas.Canvas(output, pagesize=(80, 100))
+    for _ in range(7):
+        pdf.showPage()
+    pdf.save()
+    elapsed = 0
+
+    def ocr(args, **options):
+        nonlocal elapsed
+        number = int(Path(args[1]).stem.split('-')[1])
+        refined = '3' == args[args.index('--psm') + 1]
+        elapsed += min(options['timeout'], 25 if refined else 3)
+        text = survey.get(number, '')
+        if number == 6 and refined:
+            text += '\nИТОГО АКТИВЫ  467 708 505  395 564 291  338 699 936'
+        return SimpleNamespace(stdout=text)
+
+    monkeypatch.setattr(extract, 'MAX_OCR_PAGES', 2)
+    monkeypatch.setattr(extract.shutil, 'which', lambda name: name)
+    monkeypatch.setattr(extract, 'time', SimpleNamespace(monotonic=lambda: elapsed))
+    monkeypatch.setattr(extract.subprocess, 'run', ocr)
+    monkeypatch.setattr(extract.layout, 'tsv_text', lambda text: text)
+    monkeypatch.setattr(extract, 'deskew_image', lambda image: (image, 0))
+    pages, evidence = extract.page_texts(output.getvalue(), ocr=True)
+    first = [attempt for attempt in evidence['ocr_attempts'] if attempt['scale'] >= 3][:2]
+    assert [attempt['page'] for attempt in first] == [7, 6]
+    assert all(attempt['scale'] == 3 and not attempt['crop_margins'] for attempt in first)
+    assert '338 699 936' in pages[6]

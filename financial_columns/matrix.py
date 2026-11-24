@@ -22,7 +22,7 @@ def choose(items):
             'sources': [{k: r.get(k) for k in ('source_version', 'source_url', 'page', 'sheet', 'row', 'raw_label')} for r in items]}
 
 
-def build(observations, *, mode, recent=False, interim_ttm=False, recent_ttm=False, filed_end=None):
+def build(observations, *, mode, recent=False, annual_history=False, interim_ttm=False, recent_ttm=False, filed_end=None):
     if mode not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
     ends = sorted({r['period_end'] for r in observations} | ({filed_end} if filed_end else set()))
@@ -35,7 +35,15 @@ def build(observations, *, mode, recent=False, interim_ttm=False, recent_ttm=Fal
                 if filed_end:
                     filed.add(filed_end)
                 columns = [column for column in columns if column['end'] in filed]
-            columns = columns[-2:]
+            if annual_history:
+                # Opening cash and equity belong in the following statement.
+                # An opening balance alone cannot establish a prior annual column.
+                reported = {r['period_end'] for r in observations
+                            if r.get('metric_id') not in {'cash_begin', 'equity_open'}
+                            or r.get('statement_period_end', r['period_end']) == r['period_end']}
+                columns = [column for column in columns if column['end'] in reported]
+            else:
+                columns = columns[-2:]
         if ends and not ends[-1].endswith('-12-31'):
             latest = ends[-1]
             if recent:

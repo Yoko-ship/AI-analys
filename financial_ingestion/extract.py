@@ -14,7 +14,7 @@ import pypdfium2
 
 from . import documents, layout, statements, store, validation
 
-PARSER_VERSION = "bank-pdf-draft-v3-" + statements.VERSION
+PARSER_VERSION = "bank-pdf-draft-v4-" + statements.VERSION
 MAX_PAGES = 16
 MAX_OCR_PAGES = 8
 MAX_DISCOVERED_PAGES = 32
@@ -218,17 +218,25 @@ def page_texts(payload, *, ocr=False):
                 # Keep native evidence when the survey has found no statement.
                 retain(number, survey)
                 labels = sum(statements.row_label(line) is not None for line in statements.statement_lines(survey))
-                heading = bool(re.search(r"statement of (?:financial|profit|income)|отч[её]т о (?:финансов|прибыл)", survey, re.I))
+                # Auditors mention the statements in prose. Prefer a heading on
+                # its own line to those references when allocating OCR time.
+                heading = any(
+                    re.match(r'^\s*(?:(?:consolidated|separate|condensed|interim|консолидированн\w*|отдельн\w*|промежуточн\w*)\s+)*(?:statement|отч[её]т)\b', line, re.I)
+                    and statements.section_kind(line)
+                    for line in survey.splitlines()[:15]
+                )
                 score = labels + 3 * heading + int(statements.is_ifrs(survey))
                 if score or number in problem_pages:
                     targets.append((score, number))
-            for _, number in sorted(targets, key=lambda item: (-item[0], item[1]))[:MAX_OCR_PAGES]:
+            ranked = [number for _, number in sorted(targets, key=lambda item: (-item[0], item[1]))[:MAX_OCR_PAGES]]
+            for number in ranked:
                 if time.monotonic() >= deadline:
                     break
                 refined = recognize(number, 3, 30)
                 evidence["ocr_pages"].append(number)
                 if refined is not None:
                     retain(number, refined)
+            for number in evidence["ocr_pages"]:
                 # Binder marks and ruled tables can defeat one segmentation
                 # mode. Try bounded alternatives only while a statement is
                 # incomplete; retain the strongest whole-page extraction.

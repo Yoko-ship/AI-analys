@@ -147,3 +147,38 @@ print(json.dumps(investor.project(payload, rows)))
   await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'}))
     .toHaveAttribute('href', JSON.parse(readFileSync('tests/fixtures/financial_columns/'+example.file+'.json','utf8')).payload.source.pdf_url);
 });
+
+test('KASU shows the restated 2023 balance sheet alongside the two later years', async ({page}) => {
+  const source = 'https://openinfo.uz/media/int_report/e1ccfed8-fc8f-48dc-bb0d-6a7da0f40029.pdf';
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const filing = JSON.parse(execFileSync(python, ['-c', `
+import json, os, sys, tempfile
+from unittest.mock import patch
+from financial_columns import service
+with tempfile.TemporaryDirectory() as scratch:
+    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
+    rows = []
+    for year, amount in [(2023, '338699936'), (2024, '395564291'), (2025, '467708505')]:
+        end = f'{year}-12-31'
+        rows.append(dict(metric_id='total_assets', source_form='BS', source_code=None, raw_label='ИТОГО АКТИВЫ',
+                         value=amount, kind='stock', quality='valid', unit='UZS_thousand', currency='UZS',
+                         page=6, period_start=end, period_end=end, standard='MSFO', scope='separate',
+                         issuer_id='34', source_version='312', source_url=sys.argv[1]))
+    rows.append(dict(rows[0], metric_id='cash_begin', source_form='CF', period_start='2022-12-31',
+                     period_end='2022-12-31', statement_period_end='2023-12-31', raw_label='Opening cash', value='1'))
+    with patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['separate']), patch.object(service.observations, 'ifrs', return_value=rows):
+        print(json.dumps(service.load('KASU', form='MSFO', view='investor', scope='separate', freq='annual')))
+`, source], {encoding:'utf8'}));
+  await setup(page);
+  await page.route('**/api/company/KASU/financials/columns?**', route => route.fulfill({json:filing}));
+  await page.goto('/company/KASU?tab=financials&standard=MSFO');
+  const panel = page.getByTestId('ifrs-investor');
+  await panel.getByRole('tab',{name:'BS Balance', exact:true}).click();
+  const headers = panel.locator('thead th');
+  await expect(headers).toHaveCount(4);
+  await expect(headers.nth(1)).toContainText('2023');
+  const assets = panel.locator('tr[data-field="assets"]').getByRole('button').first();
+  await expect(assets).toHaveText('338.7');
+  await assets.click();
+  await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'})).toHaveAttribute('href',source);
+});
