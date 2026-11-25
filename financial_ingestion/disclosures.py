@@ -67,7 +67,7 @@ def _attachments(detail, row):
         path = unquote(parsed.path)
         workbook = (field == 'int_report' and parsed.scheme == 'https' and parsed.netloc == 'openinfo.uz'
                 and not parsed.query and not parsed.fragment
-                and re.fullmatch(r'/media/int_report/[A-Za-z0-9_-]+\.xlsx', path, re.I))
+                and re.fullmatch(r'/media/int_report/[\w() -]+\.xlsx', path, re.I))
         if workbook and row['api_path'].split('/')[-3] == 'annual':
             # Annual workbooks are handled by the dated share-supplement importer.
             continue

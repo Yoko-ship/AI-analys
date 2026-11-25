@@ -73,6 +73,14 @@ def test_garant_quarterly_financial_workbook_can_enter_document_review():
     assert [(a['url'], a['metadata']['source_api_url']) for a in attachments] == [(url, disclosures.API + path)]
 
 
+def test_jasm_disclosure_accepts_local_language_workbook_filename():
+    from urllib.parse import quote
+    url = 'https://openinfo.uz/media/int_report/' + quote('форма_2_МН_2024_йил_1_кв.xlsx')
+    row = {'org_id': '246', 'api_path': '/reports/jsc/quarter/15672/'}
+    detail = {'organization': {'id': 246}, 'id': 15672, 'int_report': url}
+    assert [a['url'] for a in disclosures._attachments(detail, row)] == [url]
+
+
 @pytest.mark.parametrize('from_catalog', [False, True])
 def test_garant_quarterly_statement_registered_for_review(setup, from_catalog):
     path = '/reports/bank/quarter/1185/'
