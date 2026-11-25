@@ -23,6 +23,35 @@ def metrics(report):
     return {r['metric_code']: r for r in service.public_report(report)['ratios']}
 
 
+@pytest.mark.parametrize(('preferred_capital', 'ordinary_only', 'valid'), [
+    ('0', True, True), ('0', False, False), ('584000', True, False), ('584000', False, True),
+])
+def test_davr_bank_disclosed_ordinary_shares_match_filed_class_capital(
+        tmp_path, monkeypatch, preferred_capital, ordinary_only, valid):
+    from financial_columns import share_disclosures
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'davr-shares.db'))
+    basis = dict(issuer_id='26', ticker='DRBK', isin='UZ7050240009',
+                 period_start='2026-01-01', period_end='2026-09-30', scope='separate',
+                 source_url='https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1336/',
+                 source_standard='NSBU', unit='shares', ordinary_shares='100000000',
+                 ordinary_only_at_end=ordinary_only,
+                 class_capital_thousand={'ordinary_share_capital': '500000000',
+                                         'preferred_share_capital': preferred_capital},
+                 source_lines={'ordinary_shares': '100 million voting shares at full quorum.',
+                               'ordinary_only_at_end': 'The quarterly filing identifies each class.',
+                               'class_capital_thousand': 'Separate bank balance sheet, rows 26a and 26b.'})
+    if valid:
+        share_disclosures.record(basis, actor='test', reason='Reviewed class composition')
+        stored = share_disclosures.read('26', 'DRBK', '2026-09-30', 'separate')
+        assert stored['class_capital_thousand'] == basis['class_capital_thousand']
+    elif ordinary_only:
+        share_disclosures.record(basis, actor='test', reason='Conflicting class composition')
+        assert share_disclosures.read('26', 'DRBK', '2026-09-30', 'separate') is None
+    else:
+        with pytest.raises(ValueError, match='class capital'):
+            share_disclosures.record(basis, actor='test', reason='Inconsistent class evidence')
+
+
 def test_hmkb_published_ifrs_eps_appears_in_bank_report_only_for_its_scope(report, monkeypatch):
     from financial_analysis import report_investor_metrics as subject
     report.update(standard='ifrs', scope='consolidated', period='2025', financial_as_of='2025-12-31')

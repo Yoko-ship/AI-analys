@@ -136,8 +136,10 @@ def _validate(value):
         if count <= 0 or count != count.to_integral_value() or price <= 0:
             raise ValueError('Invalid preferred liquidation terms')
     if 'class_capital_thousand' in data:
-        amounts = _class_amounts(data, 'class_capital_thousand', ('ordinary_share_capital', 'preferred_share_capital'))
-        if min(amounts) <= 0:
+        ordinary, preferred = _class_amounts(data, 'class_capital_thousand',
+                                             ('ordinary_share_capital', 'preferred_share_capital'))
+        ordinary_only = data.get('ordinary_only') or data.get('ordinary_only_at_end', False)
+        if ordinary <= 0 or preferred < 0 or (preferred == 0 and not ordinary_only):
             raise ValueError('Invalid reported class capital')
     if 'preferred_profit_allocation' in data:
         _, allocation = _class_amounts(data, 'preferred_profit_allocation', ('net_profit_thousand', 'preferred_thousand'))
@@ -303,6 +305,9 @@ def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
             return None
     finally:
         c.close()
+    if (data.get('ordinary_only') or data.get('ordinary_only_at_end')) and data.get('class_capital_thousand'):
+        if Decimal(str(data['class_capital_thousand']['preferred_share_capital'])) > 0:
+            return None
     return {**data, 'source_version': version, 'verification_status': 'verified'}
 
 def form5_basis(workbook, *, ticker, issuer_id, tin, period_end):
