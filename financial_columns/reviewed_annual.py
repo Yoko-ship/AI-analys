@@ -53,7 +53,7 @@ def cells(report):
                        period_start=report['period_end'] if stock else report['period_start'],
                        period_end=report['period_end'], role='PRIMARY', page=page['page'],
                        published_at=report['published_at'], source_version=report['sha256'],
-                       source_url=report['url'], audit_status='audited',
+                       source_url=report['url'], audit_status=report.get('audit_status', 'audited'),
                        normalization='expense deducted from income' if expense else 'reported in thousand UZS')
 
 
@@ -69,8 +69,13 @@ def merge_rows(native, reviewed, annual):
     return native + [row for row in supplements if identity(row) not in keys]
 
 
+def _amount(value, scale=1):
+    amount = Decimal(value) * scale
+    return int(amount) if amount == amount.to_integral_value() else float(amount)
+
+
 def history(report):
-    values = {c['metric_id']:int(c['value']) for c in cells(report)}
+    values = {c['metric_id']:_amount(c['value']) for c in cells(report)}
     expenses = ('selling_expense','admin_expense','other_operating_expense')
     if all(field in values for field in expenses):
         values['operating_expenses'] = sum(values[field] for field in expenses)
@@ -114,8 +119,8 @@ def passport(report, field, source_field):
     if not cell:
         return None
     return dict(status='SOURCED', period=report['period_end'][:4], field=field, standard='NSBU',
-                source_field=metric_id, value=int(cell['value']),
+                source_field=metric_id, value=_amount(cell['value']),
                 source={**cell, 'pdf_url':report['url'],'report_form':'NSBU','period_type':'annual',
                         'period_year':int(report['period_end'][:4]), 'state':'published',
                         'source_published_at':report['published_at'], 'file_hash':report['sha256'],
-                        'normalized_value':int(cell['value'])*1000})
+                        'normalized_value':_amount(cell['value'], 1000)})

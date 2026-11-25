@@ -702,3 +702,50 @@ def test_year_end_returns_use_each_filings_own_source_version(monkeypatch, tmp_p
     assert (quarter_period, quarter_cell['basis']) == ('2025Q4', 'ytd')
     assert year['value'] == pytest.approx(14.43, abs=.005)
     assert quarter_cell['value'] == pytest.approx(year['value'] * 2)
+
+
+@pytest.mark.parametrize('case', ['confirmed', 'conflict', 'one_filing', 'held'])
+def test_biok_annual_ratios_use_corroborated_opening_form1(case):
+    from financial_columns.observations import check
+
+    rows = []
+    start, end = '2024-12-31', '2025-12-31'
+    fields = [('400', 'total_assets'), ('480', 'total_equity'), ('770', 'total_liabilities'),
+              ('780', 'total_equity_liabilities')]
+    for report, role, date, amounts in [
+        (5494, 'PRIMARY', start, [94799303, 111178602, 26207266, 137385868]),
+        (17697, 'COMPARATIVE', start, [137385868, 111178602, 26207266, 137385868]),
+        (5983, 'COMPARATIVE', start, [137385868, 111178602, 26207266, 137385868]),
+        (5983, 'PRIMARY', end, [128528451, 118581051, 9947400, 128528451]),
+    ]:
+        if report == 17697 and case == 'one_filing':
+            continue
+        if report == 17697 and case == 'conflict':
+            amounts = [137385900, 111178634, 26207266, 137385900]
+        url = ('https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=jsc'
+               f'&report_type={"quarter" if report == 17697 else "annual"}&report_id={report}')
+        for (code, metric), value in zip(fields, amounts):
+            rows.append(dict(source_code=code, metric_id=metric, kind='stock', value=str(value),
+                             role=role, standard='NSBU', scope='separate', issuer_id='396',
+                             currency='UZS', unit='UZS_thousand', unit_scale='1000', source_form='F1',
+                             period_end=date, period_start=date, quality='valid', raw_label=metric,
+                             source_version=str(report), source_url=url))
+    for code, metric, value in [('010','revenue','225437116'), ('270','net_income','13241045')]:
+        rows.append({**rows[-1], 'source_form':'F2', 'source_code':code, 'metric_id':metric,
+                     'value':value, 'kind':'flow', 'period_start':'2025-01-01', 'raw_label':metric})
+    check(rows)
+    if case == 'held':
+        for row in rows:
+            if row['source_version'] == '5494':
+                row.update(quality='blocked', reason='UNDER_REVIEW')
+    results = {r['metric_id']:r for r in ratios.calculate(rows, ticker='BIOK', template='industry',
+                                                          end=end, basis='annual')}
+    for metric, numerator, denominator, closing in [('roa',1324104500,137385868,128528451),
+                                                    ('roe',1324104500,111178602,118581051),
+                                                    ('asset_turnover',225437116,137385868,128528451)]:
+        result = results[metric]
+        if case == 'confirmed':
+            assert float(result['value']) == pytest.approx(numerator / ((denominator + closing) / 2))
+            assert result['components'][1]['source_version'] == '5983'
+        else:
+            assert result['value'] is None

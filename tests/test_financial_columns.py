@@ -240,3 +240,25 @@ def test_universal_bank_single_period_balance_uses_both_sides(variant):
         assert next(r['value'] for r in data if r['metric_id'] == 'preferred_share_capital' and r['role'] == 'PRIMARY') == '0'
     else:
         assert assets['PRIMARY']['value'] in ('0', None)
+
+
+def test_bngp_signed_year_end_resolves_conflicting_opening_balances():
+    from decimal import Decimal
+    from financial_columns import matrix, reviewed_annual
+
+    reports = reviewed_annual.selected('153', documents=[])
+    report, = [r for r in reports if r['period_end'] == '2023-12-31']
+    assets = next(c for c in reviewed_annual.cells(report) if c['source_code'] == '400')
+    comparatives = [dict(assets, role='COMPARATIVE', value=v) for v in ('112112549.33', '108241585.54')]
+    assert matrix.choose(comparatives)['value'] is None
+    recovered = reviewed_annual.merge_rows(comparatives, [report], annual=True)
+    by_code = {r['source_code']: r for r in recovered}
+    assert len(by_code) == 19
+    assert '470' not in by_code
+    assert by_code['400']['value'] == '112112549.33'
+    assert Decimal(by_code['400']['value']) == Decimal(by_code['480']['value']) + Decimal(by_code['770']['value'])
+    assert by_code['400']['page'] == 3 and by_code['400']['audit_status'] == 'unknown'
+    assert reviewed_annual.history(report)['total_assets'] == 112112549.33
+    passport = reviewed_annual.passport(report, 'total_assets', 'total_assets')
+    assert passport['value'] == 112112549.33
+    assert passport['source']['normalized_value'] == 112112549330

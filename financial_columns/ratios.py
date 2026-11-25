@@ -44,6 +44,57 @@ def _gross_profit_for_margin(metrics):
     return [verified.get(id(r), r) for r in metrics['gross_profit']]
 
 
+def _confirmed_opening(metrics, field, opening, end):
+    """Use the annual filing's opening balance when independent Form 1 filings confirm it."""
+    from .share_disclosures import filing_key
+
+    at = opening['period_end']
+    closing = choose([r for r in metrics[field] if r['period_end'] == end])
+    annual = filing_key(closing.get('source_url'))
+    if not annual or annual[:2] != ('jsc', 'annual') or closing.get('quality') != 'valid':
+        return opening
+    keys = (*CONTEXT, 'currency', 'unit', 'unit_scale')
+    def context(row):
+        return tuple(row.get(k) for k in keys)
+    if context(opening) != context(closing) or opening.get('unit') != 'UZS_thousand':
+        return opening
+
+    fields = ('total_equity', 'total_liabilities', 'total_equity_liabilities', 'total_assets')
+    groups = defaultdict(dict)
+    for metric in fields:
+        for row in metrics[metric]:
+            if row['period_end'] != at or context(row) != context(opening) or row.get('source_form') != 'F1':
+                continue
+            group = groups[row.get('source_version')]
+            if metric in group or row.get('value') is None:
+                return opening
+            group[metric] = row
+    original = groups.pop(opening.get('source_version'), {})
+    if set(original) != set(fields) or any(r.get('role') != 'PRIMARY' for r in original.values()):
+        return opening
+    # The prior filing's funding side must tie independently of its blocked asset line.
+    equity, liabilities, total = [Decimal(original[m]['value']) for m in fields[:3]]
+    if equity + liabilities != total or total <= 0 or liabilities < 0:
+        return opening
+    expected = (equity, liabilities, total, total)
+    filings = set()
+    for form in groups.values():
+        if set(form) != set(fields):
+            return opening
+        for metric, amount in zip(fields, expected):
+            row = form[metric]
+            if row.get('role') != 'COMPARATIVE' or row.get('quality') != 'valid' or Decimal(row['value']) != amount:
+                return opening
+        filing = filing_key(form[field].get('source_url'))
+        if not filing or filing[0] != 'jsc':
+            return opening
+        filings.add(filing)
+    annual_form = groups.get(closing.get('source_version'))
+    if len(filings) < 2 or not annual_form:
+        return opening
+    return {**annual_form[field], 'sources': [form[field] for form in groups.values()]}
+
+
 def calculate(observations, *, ticker, template, end, basis, enriched=False):
     if basis not in {'annual', 'quarter', 'ttm', 'as_of', 'ytd'}:
         raise ValueError('Unknown ratio basis')
@@ -64,7 +115,12 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     result = []
 
     def point(field, at):
-        return choose([r for r in by_metric[field] if r['period_end'] == at])
+        selected = choose([r for r in by_metric[field] if r['period_end'] == at])
+        if (basis == 'annual' and at == start and field in {'total_assets', 'total_equity'}
+                and selected.get('standard') == 'NSBU' and selected.get('source_form') == 'F1'
+                and selected.get('quality') == 'blocked' and selected.get('reason') == 'SOURCE_BALANCE_MISMATCH'):
+            return _confirmed_opening(by_metric, field, selected, end)
+        return selected
 
     def flow(field, data=None):
         if data is None:
