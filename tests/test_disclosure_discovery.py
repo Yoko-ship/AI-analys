@@ -64,6 +64,44 @@ def test_catalog_bootstrap_is_part_of_normal_discovery(setup,monkeypatch):
     assert result['annual_attachments']['requests']==1
 
 
+def test_garant_quarterly_financial_workbook_can_enter_document_review():
+    path = '/reports/bank/quarter/1295/'
+    url = 'https://openinfo.uz/media/int_report/1eaa02f8-c64e-4240-ad00-8d4ff5a61725.xlsx'
+    attachments = disclosures._attachments(
+        {'organization': {'id': 11}, 'id': 1295, 'int_report': url},
+        {'org_id': '11', 'api_path': path})
+    assert [(a['url'], a['metadata']['source_api_url']) for a in attachments] == [(url, disclosures.API + path)]
+
+
+@pytest.mark.parametrize('from_catalog', [False, True])
+def test_garant_quarterly_statement_registered_for_review(setup, from_catalog):
+    path = '/reports/bank/quarter/1185/'
+    url = 'https://openinfo.uz/media/int_report/caac4742-9d3d-4877-b159-7dbf2fab77ce.pdf'
+    with store.transaction() as conn:
+        conn.execute("INSERT INTO catalog_companies (ticker,company_name,org_id) VALUES ('GRBK','Garant bank','11')")
+        if from_catalog:
+            catalogue_filings._upsert_report(
+                conn, 'GRBK', report_form='NSBU', period_type='quarter', year=2025, quarter=3,
+                title='Quarterly', published_at='2025-10-23', pdf_url=None,
+                excel_url=disclosures.API + '/reports/export-excel/?org_type=bank&report_type=quarter&report_id=1185',
+                excel_url_form1=None, openinfo_report_id='25878', object_id=1185)
+    if not from_catalog:
+        disclosures.remember_listing(ticker='GRBK', org_id='11', records=[{
+            'id': 25878, 'organization': 11, 'object_id': 1185, 'report_type': 'NSBU',
+            'properties': {'org_type': 'bank', 'report_type': 'quarter'}}])
+
+    def fetch(requested):
+        assert requested == path
+        return {'id': 1185, 'parent_id': 25878, 'organization': {'id': 11}, 'int_report': url}
+
+    result = disclosures.discover(processor='test', fetch=fetch)
+    assert result == {'sources': 1, 'requests': 1, 'errors': [], 'pending': 0}
+    with store.transaction() as conn:
+        source = conn.execute("SELECT metadata_json FROM ingest_sources WHERE org_id='11' AND url=?", (url,)).fetchone()
+        assert json.loads(source['metadata_json'])['source_api_url'] == disclosures.API + path
+    assert publication.snapshots('GRBK') == []
+
+
 @pytest.mark.parametrize('change', ['issuer','record','audit_parent','external','traversal','not_pdf'])
 def test_rejects_wrong_issuer_and_unsafe_attachments(setup,change):
     remember();d=detail()

@@ -1,4 +1,4 @@
-"""Discover PDF attachments inside OpenInfo annual filings, independently of NSBU values."""
+"""Discover financial statement attachments inside OpenInfo annual and quarterly filings, independently of NSBU values."""
 import hashlib
 import json
 import re
@@ -12,10 +12,12 @@ WEB = "https://openinfo.uz"
 REFRESH_SECONDS = 7 * 86400
 
 
-def remember(c, *, ticker, org_id, org_type, report_id):
+def remember(c, *, ticker, org_id, org_type, report_id, period_type="annual"):
     if not re.fullmatch(r"[a-z_]+", str(org_type)) or not str(report_id).isdigit():
         return
-    path = f"/reports/{org_type}/annual/{report_id}/"
+    if period_type not in ("annual", "quarter"):
+        return
+    path = f"/reports/{org_type}/{period_type}/{report_id}/"
     key = store.digest([str(org_id), path])
     c.execute("INSERT INTO ingest_disclosures (id,org_id,ticker,api_path) VALUES (?,?,?,?) "
               "ON CONFLICT(id) DO NOTHING", (key, str(org_id), ticker, path))
@@ -28,21 +30,21 @@ def remember_listing(*, ticker, org_id, records):
         for rec in records:
             props = rec.get("properties") or {}
             if (str(rec.get("organization")) == str(org_id) and rec.get("report_type") == "NSBU"
-                    and props.get("report_type") == "annual"):
+                    and props.get("report_type") in ("annual", "quarter")):
                 remember(c, ticker=ticker, org_id=org_id, org_type=props.get("org_type"),
-                         report_id=rec.get("object_id"))
+                         report_id=rec.get("object_id"), period_type=props["report_type"])
 
 
 def _fetch(path):
     from openinfo_http import shared_session
     with shared_session().get(API + path, stream=True, timeout=(10, 20), allow_redirects=False) as r:
         if r.status_code != 200:
-            raise ValueError(f"Annual disclosure returned HTTP {r.status_code}")
+            raise ValueError(f"Disclosure returned HTTP {r.status_code}")
         content = bytearray()
         for chunk in r.iter_content(65536):
             content.extend(chunk)
             if len(content) > 8 * 1024 * 1024:
-                raise ValueError("Annual disclosure exceeds size limit")
+                raise ValueError("Disclosure exceeds size limit")
     return json.loads(content)
 
 
@@ -50,11 +52,11 @@ def _attachments(detail, row):
     org = detail.get("organization") or {}
     expected_id = row["api_path"].strip("/").split("/")[-1]
     if not isinstance(org, dict) or str(org.get("id")) != row["org_id"] or str(detail.get("id")) != expected_id:
-        raise ValueError("Annual disclosure issuer or record does not match request")
+        raise ValueError("Disclosure issuer or record does not match request")
     files = [(detail.get("int_report"), "MSFO", "int_report")]
     for audit in detail.get("audition_result_report") or []:
         if audit.get("main_report") is not None and str(audit["main_report"]) != expected_id:
-            raise ValueError("Audit attachment belongs to a different annual disclosure")
+            raise ValueError("Audit attachment belongs to a different disclosure")
         files.append((audit.get("conclusion_file"), "Audition", "audition_result_report"))
     found = {}
     for value, category, field in files:
@@ -63,15 +65,16 @@ def _attachments(detail, row):
         url = urljoin(WEB + "/media/", str(value))
         parsed = urlparse(url)
         path = unquote(parsed.path)
-        if (field == 'int_report' and parsed.scheme == 'https' and parsed.netloc == 'openinfo.uz'
+        workbook = (field == 'int_report' and parsed.scheme == 'https' and parsed.netloc == 'openinfo.uz'
                 and not parsed.query and not parsed.fragment
-                and re.fullmatch(r'/media/int_report/[A-Za-z0-9_-]+\.xlsx', path, re.I)):
-            # The dated share-supplement importer reads these. Continue to the audit attachment.
+                and re.fullmatch(r'/media/int_report/[A-Za-z0-9_-]+\.xlsx', path, re.I))
+        if workbook and row['api_path'].split('/')[-3] == 'annual':
+            # Annual workbooks are handled by the dated share-supplement importer.
             continue
         if (parsed.scheme != "https" or parsed.netloc != "openinfo.uz" or parsed.query or parsed.fragment
-                or not path.startswith("/media/") or not path.lower().endswith(".pdf")
+                or not path.startswith("/media/") or not (workbook or path.lower().endswith(".pdf"))
                 or ".." in path.split("/") or "\\" in path):
-            raise ValueError("Annual attachment is not an OpenInfo media PDF")
+            raise ValueError("Unsupported OpenInfo disclosure attachment")
         found.setdefault(url, {"url": url, "category": category, "metadata": {
             "source_page_url": WEB + "/ru" + row["api_path"].rstrip("/"),
             "source_api_url": API + row["api_path"], "attachment_field": field,
@@ -86,21 +89,34 @@ def discover(*, ticker=None, processor, max_requests=8, fetch=None):
     from .documents import register
     fetch = fetch or _fetch
     # Bootstrap historical catalog rows; normal catalog sync also remembers
-    # every annual parent, including parents excluded from NSBU value ingestion.
+    # every eligible parent, including parents excluded from NSBU value ingestion.
     with store.transaction() as c:
-        annuals = c.execute("SELECT r.*,c.org_id FROM catalog_reports r JOIN catalog_companies c ON c.ticker=r.ticker "
-                            "WHERE r.report_form='NSBU' AND r.period_type='annual' AND c.org_id IS NOT NULL").fetchall()
-        for row in annuals:
+        company_filter = (" AND c.org_id=(SELECT org_id FROM catalog_companies WHERE ticker=?)"
+                          if ticker else "")
+        args = (ticker.upper(),) if ticker else ()
+        parents = c.execute(
+            "SELECT r.ticker,c.org_id,r.period_type,r.excel_url,r.excel_url_form1 "
+            "FROM catalog_reports r JOIN catalog_companies c ON c.ticker=r.ticker "
+            "WHERE r.report_form='NSBU' AND r.period_type IN ('annual','quarter') AND c.org_id IS NOT NULL"
+            + company_filter, args)
+        for row in parents:
             parsed = urlparse(row["excel_url"] or row["excel_url_form1"] or "")
+            if (parsed.scheme != "https" or parsed.netloc != "new-api.openinfo.uz"
+                    or parsed.path != "/api/v2/reports/export-excel/"):
+                continue
             query = parse_qs(parsed.query)
-            if parsed.scheme == "https" and parsed.netloc == "new-api.openinfo.uz" and parsed.path == "/api/v2/reports/export-excel/":
-                remember(c, ticker=row["ticker"], org_id=row["org_id"],
-                         org_type=query.get("org_type", [None])[0], report_id=query.get("report_id", [None])[0])
+            org_type = query.get("org_type", [None])[0]
+            if not ticker and org_type != "bank":
+                continue
+            if query.get("report_type", [row["period_type"]]) != [row["period_type"]]:
+                continue
+            remember(c, ticker=row["ticker"], org_id=row["org_id"], org_type=org_type,
+                     report_id=query.get("report_id", [None])[0], period_type=row["period_type"])
         rows = [dict(r) for r in c.execute(
             "SELECT d.* FROM ingest_disclosures d WHERE EXISTS (SELECT 1 FROM catalog_companies c "
             "WHERE c.org_id=d.org_id AND c.ticker=d.ticker)" +
             (" AND d.org_id=(SELECT org_id FROM catalog_companies WHERE ticker=?)" if ticker else
-             " AND d.api_path LIKE '/reports/bank/annual/%'") +
+             " AND d.api_path LIKE '/reports/bank/%'") +
             " ORDER BY COALESCE(d.checked_at,0),d.id", (ticker.upper(),) if ticker else ()).fetchall()]
     requested, errors, ids = 0, [], set()
     started = time.monotonic()
@@ -132,7 +148,7 @@ def discover(*, ticker=None, processor, max_requests=8, fetch=None):
 
 
 def reviewed_attachment(conn, *, org_id, api_path, category, url, pdf_sha, parent_sha):
-    """Match the archived PDF and its membership in the reviewed annual filing."""
+    """Match the archived PDF and its membership in the reviewed filing."""
     import dbx
     if not {'ingest_disclosures', 'ingest_sources', 'ingest_versions'} <= set(dbx.tables(conn)):
         return False
