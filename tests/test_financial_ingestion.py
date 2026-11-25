@@ -411,6 +411,14 @@ def test_vps_pdf_worker_is_persistent_bounded_and_shadow_only():
                      "financial_ingestion.bulk --workers 2 --ocr", "ExecStopPost=", "TimeoutStartSec=24h",
                      "--report /app/data/bulk-financial-report.json", "OMP_THREAD_LIMIT=1"):
         assert required in service
+    # A scheduled oneshot stays "activating" while the PDF worker runs.
+    capture = workflow.index('systemctl show uzstock-financial-ingestion.service -p ActiveState --value')
+    remember = workflow.index('active|activating) touch "$ingestion_resume"')
+    stop = workflow.index('systemctl stop "$service"', capture)
+    resume = workflow.index('systemctl start --no-block uzstock-financial-ingestion.service', stop)
+    assert capture < remember < stop < workflow.index('systemctl daemon-reload', stop) < resume
+    assert 'if [ -e "$ingestion_resume" ]; then' in workflow[stop:resume]
+    assert workflow.index('rm -f "$ingestion_resume"', resume) > resume
     assert "worker publish" not in service
     assert workflow.count("uzstock-financial-ingestion.timer uzstock-news-collector.timer") == 2
 

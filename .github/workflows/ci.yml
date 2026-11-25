@@ -901,6 +901,11 @@ jobs:
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer uzstock-event-evidence.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
+          # Preserve the scheduled run across this release and failed release retries.
+          ingestion_resume=/run/uzstock-resume-financial-ingestion
+          case "$(systemctl show uzstock-financial-ingestion.service -p ActiveState --value)" in
+            active|activating) touch "$ingestion_resume" ;;
+          esac
           for service in \
             uzstock-collection-monitor.service \
             uzstock-terminal-alerts.service uzstock-terminal-cbu.service \
@@ -1409,6 +1414,10 @@ jobs:
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done
+          if [ -e "$ingestion_resume" ]; then
+            systemctl start --no-block uzstock-financial-ingestion.service
+            rm -f "$ingestion_resume"
+          fi
           echo 'Single quotes timer is active; former closing/final services are inactive.'
           systemctl cat uzstock-quotes-catchup.timer | grep '^OnCalendar='
           systemctl cat uzstock-reports-watch.timer | grep -Fx 'OnCalendar=Mon..Sat *-*-* 16:20:00 Asia/Tashkent'

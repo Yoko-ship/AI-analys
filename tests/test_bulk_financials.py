@@ -129,3 +129,26 @@ def test_investor_inventory_in_report_only_mode_is_scoped_and_offline(setup, mon
     assert bulk.main(['--report-only','--investor-metrics','--ticker','BRBN','--report',str(path)]) == 0
     assert calls == [['BRBN']]
     assert json.loads(path.read_text())['investor_metrics']['issuers'] == []
+
+def test_full_scheduled_run_processes_pending_documents_before_catalog_sync(setup, monkeypatch, tmp_path):
+    import catalogue.sync as sync
+
+    documents.discover(ticker="BRBN", processor=extract.processor_version())
+    worker.run(max_jobs=1, stages=("FETCH",), fetch=lambda _: setup[1])
+    assert bulk.queue_state(["23"])["EXTRACT"] == 1
+    order = []
+
+    def resume(org_ids, **kwargs):
+        assert "23" in org_ids and kwargs["deadline"] <= time.monotonic() + 10
+        order.append("queue")
+        return {"processed": 1}
+
+    def interrupt_sync(**kwargs):
+        order.append("sync")
+        raise RuntimeError("Simulated release interruption")
+
+    monkeypatch.setattr(bulk, "drain", resume)
+    monkeypatch.setattr(sync, "sync_all", interrupt_sync)
+    path = tmp_path / "report.json"
+    assert bulk.main(["--nsbu-history", "--max-seconds", "10", "--report", str(path)]) == 1
+    assert order == ["queue", "sync"]

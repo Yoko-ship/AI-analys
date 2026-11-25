@@ -223,6 +223,17 @@ def main(argv=None):
     coverage_report = None
     run = {"started_at": store.now(), "processor": extract.processor_version(), "discovery": [], "errors": []}
     try:
+        if not args.report_only and tickers is None and (args.nsbu_history or args.investor_metrics):
+            # Scheduled runs can be interrupted during catalog sync and history collection.
+            # Give previously queued documents a turn before repeating those network sweeps.
+            cached, _ = issuers(None)
+            cached_ids = [str(row["org_id"]) for row in cached]
+            ready = queue_state(cached_ids)
+            if ready["FETCH"] or ready["EXTRACT"]:
+                resume_until = started + 300
+                if deadline is not None:
+                    resume_until = min(resume_until, deadline)
+                run["resumed_queue"] = drain(cached_ids, workers=args.workers, ocr=args.ocr, deadline=resume_until)
         if not args.report_only and not args.skip_sync:
             log.info("Refreshing issuer and report listings")
             run["catalog_sync"] = catalogue_sync.sync_all(tickers=tickers, force=args.force_sync)
