@@ -195,3 +195,48 @@ def test_becm_h1_2026_preserves_income_and_loss_columns(reader):
         rows = nsbu.rows(book, template='general', default_form='F2')
         values = {r['metric_id']: r['current']['value'] for r in rows}
     assert {k: float(values[k]) if values[k] is not None else None for k in expected} == expected
+
+
+@pytest.mark.parametrize('variant', ['split', 'different_dates', 'mixed_values', 'unbalanced', 'wrong_period', 'one_column'])
+def test_universal_bank_single_period_balance_uses_both_sides(variant):
+    from financial_columns import observations
+    # Openinfo bank quarterly filing 1309, original Excel rows 33–91.
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=bank&report_type=quarter&report_id=1309'
+    end = '2026-09-30'
+    lines = [
+        [4, ['Дата отчетности:', end]],
+        [33, ['Бухгалтерский баланс - форма № 1']],
+        [34, ['Категории', '(тыс.сум.)', None]],
+        [36, ['1. Кассовая наличность и другие платежные документы', 459344736, 0]],
+        [65, ['14. Итого активов', 5416243300, 0]],
+        [78, ['25. Итого обязательств', 0, 4481271663]],
+        [80, ['26. Уставный капитал', 0, 500000000]],
+        [81, ['а. Акции - Обыкновенные', 0, 500000000]],
+        [82, ['б. Акции - Привилегированные', 0, 0]],
+        [90, ['30. Итого собственного капитала', 0, 934971637]],
+        [91, ['31. Итого обязательств и собственного капитала', 0, 5416243300]],
+    ]
+    if variant == 'different_dates':
+        lines[2][1][1:] = ['На начало года', 'На конец периода']
+    if variant == 'mixed_values':
+        lines[3][1][2] = 123
+    if variant == 'unbalanced':
+        lines[-1][1][2] += 100
+    if variant == 'wrong_period':
+        lines[0][1][1] = '2025-12-31'
+    if variant == 'one_column':
+        for _, cells in lines[5:]:
+            cells[1], cells[2] = cells[2], 0
+    form = dict(source_url=url, source_coverage={'complete': True}, sheets=[dict(sheet='bank',
+                source_rows=[dict(row=i, cells=cells) for i, cells in lines])])
+    doc = dict(template='bank', quality='valid', scope='separate', issuer_id='9', period_end=end,
+               source_version='1309', source_forms=[form], rows=nsbu.rows(form, template='bank'))
+    data = observations.nsbu([doc])
+    assets = {r['role']: r for r in data if r['metric_id'] == 'total_assets'}
+    if variant == 'split':
+        assert assets['PRIMARY']['value'] == '5416243300'
+        assert assets['PRIMARY']['raw_cells'][1:] == [5416243300, 0]
+        assert all(r['value'] is None for r in data if r['role'] == 'COMPARATIVE')
+        assert next(r['value'] for r in data if r['metric_id'] == 'preferred_share_capital' and r['role'] == 'PRIMARY') == '0'
+    else:
+        assert assets['PRIMARY']['value'] in ('0', None)

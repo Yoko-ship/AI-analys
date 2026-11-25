@@ -55,14 +55,80 @@ def _unreconciled_bank_loan_details(rows):
     return conflicts
 
 
+def _single_period_bank_rows(doc):
+    """Read a dated bank balance whose asset and funding sections share one amount heading."""
+    from .nsbu import cell
+    from .share_disclosures import filing_key
+
+    rows = doc['rows']
+    if doc.get('template') != 'bank':
+        return rows
+    groups = {}
+    for row in rows:
+        if row.get('source_form') == 'BANK_BS':
+            groups.setdefault((row.get('source_url'), row.get('sheet')), []).append(row)
+    columns = {}
+    for form in doc.get('source_forms', []):
+        url = form.get('source_url')
+        filing = filing_key(url)
+        if not filing or filing[:2] != ('bank', 'quarter') or not form.get('source_coverage', {}).get('complete'):
+            continue
+        for sheet in form.get('sheets', []):
+            key = (url, sheet.get('sheet', sheet.get('name')))
+            balance = groups.get(key, [])
+            controls = [r for r in balance if r.get('source_code') in {'14', '25', '30', '31'}]
+            if len(controls) != 4 or len({r['source_code'] for r in controls}) != 4:
+                continue
+            amounts = {r['source_code']: r['previous' if r['source_code'] == '14' else 'current']['value']
+                       for r in controls}
+            if any(v is None or Decimal(v) <= 0 for v in amounts.values()):
+                continue
+            if not Decimal(amounts['14']) == Decimal(amounts['31']) == Decimal(amounts['25']) + Decimal(amounts['30']):
+                continue
+            # All asset rows through line 14 use the left cell. Funding starts at line 15.
+            # Any nonzero amount on the opposite side could represent another period.
+            split = {}
+            for r in balance:
+                code = str(r.get('source_code') or '')
+                digits = code[:2] if code[:2].isdigit() else code[:1]
+                if not digits.isdigit() or not isinstance(r.get('row'), int):
+                    break
+                number = int(digits)
+                side, unused = ('previous', 'current') if number <= 14 else ('current', 'previous')
+                other = r[unused]
+                if other['quality'] not in ('missing', 'valid') or (other['value'] is not None and Decimal(other['value']) != 0):
+                    break
+                split[r['row']] = side
+            else:
+                first_row = min(split)
+                headers = [line['cells'] for line in sheet.get('source_rows', [])
+                           if line.get('cells') and isinstance(line.get('row'), int) and line['row'] < first_row]
+                dates = {str(line[1])[:10] for line in headers if len(line) > 1
+                         and str(line[0]).strip().lower().replace('ё', 'е') == 'дата отчетности:'}
+                categories = [[str(v).strip().lower() for v in line if v is not None and str(v).strip()]
+                              for line in headers if str(line[0]).strip().lower() == 'категории']
+                if dates == {doc['period_end']} and categories == [['категории', '(тыс.сум.)']]:
+                    columns[key] = split
+    if not columns:
+        return rows
+    normalized = []
+    for r in rows:
+        source_side = columns.get((r.get('source_url'), r.get('sheet')), {}).get(r.get('row'))
+        if source_side and r['source_form'] == 'BANK_BS':
+            r = {**r, 'current': r[source_side], 'previous': cell(None)}
+        normalized.append(r)
+    return normalized
+
+
 def nsbu(documents):
     result = []
     for doc in documents:
         end, year = doc['period_end'], int(doc['period_end'][:4])
         scale = Decimal(doc.get('unit_scale') or 1000)
-        bank_issues = _bank_balance_column_issues(doc['rows'])
-        unreconciled_loan_details = _unreconciled_bank_loan_details(doc['rows'])
-        for row in doc['rows']:
+        rows = _single_period_bank_rows(doc)
+        bank_issues = _bank_balance_column_issues(rows)
+        unreconciled_loan_details = _unreconciled_bank_loan_details(rows)
+        for row in rows:
             for side in ('current', 'previous'):
                 source = row[side]
                 when = end if side == 'current' else f'{year-1}-12-31' if row['kind'] == 'stock' else f'{year-1}{end[4:]}'
