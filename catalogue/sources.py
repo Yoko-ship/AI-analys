@@ -24,6 +24,7 @@ import catalogue.filings as catalogue_filings
 import catalogue.periods as catalogue_periods
 import re
 import hashlib
+from datetime import date
 import json
 
 
@@ -255,16 +256,24 @@ def cached_report_excel_data(ticker: str, form: str, year: int, quarter: int) ->
     urls = catalogue_filings.get_report_urls(ticker, form, year, quarter) or {}
     revision = _financial_revision(ticker, form, year, quarter, urls)
     documents = {}
+    changed = False
     for url in {urls.get('excel_url'), urls.get('excel_url_form1')} - {None, ''}:
         parsed = cache._get_excel_cache(url) or cache.retained_filing_workbook(url)
         if (parsed and parsed.get('ok') and parsed.get('parser_version') == settings.EXCEL_PARSER_VERSION
-                and parsed.get('financial_revision') == revision
                 and not catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get('published_at'), url)):
-            documents[url] = {**parsed, 'source_url': url}
+            if parsed.get('financial_revision') == revision:
+                documents[url] = {**parsed, 'source_url': url}
+            else:
+                changed = True
+    if changed:
+        from reporting import store
+        store.enqueue(ticker, f'filing-workbook:{form}:{year}:{quarter}:{revision}:{date.today().isoformat()}')
     income = documents.get(urls.get('excel_url'))
     balance = documents.get(urls.get('excel_url_form1') or urls.get('excel_url'))
-    return {'ok': bool(income or balance), 'income': income, 'balance': balance,
-            'error': None if income or balance else 'Selected filing workbook is not cached'}
+    error = None if income or balance else 'Selected filing workbook is not cached'
+    if changed:
+        error = 'Selected filing workbook is awaiting source verification'
+    return {'ok': bool(income or balance), 'income': income, 'balance': balance, 'error': error}
 
 
 def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,

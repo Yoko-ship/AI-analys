@@ -14,7 +14,8 @@ import sector_report_service as service
 
 
 @pytest.mark.parametrize('invalid',[None,'revision','period','parser'])
-def test_cached_workbook_reader_uses_only_the_selected_filing(monkeypatch,invalid):
+def test_cached_workbook_reader_uses_only_the_selected_filing(monkeypatch, tmp_path, invalid):
+    monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "jobs.sqlite3"))
     from collectors.openinfo import cache, settings
     url='https://example.org/HMKB-2025.xlsx'
     monkeypatch.setattr(catalogue_filings,'get_report_urls',lambda *args:{'excel_url':url})
@@ -148,6 +149,7 @@ def test_kasu_annual_reserves_survive_download_cache_turnover(monkeypatch, tmp_p
     from collectors.openinfo import cache, settings
     from catalogue.parsing import extract_insurance_balance
 
+    monkeypatch.setenv('SECTOR_ANALYSIS_DB', str(tmp_path / 'jobs.sqlite3'))
     # Openinfo annual insurance filing 312, F1 lines 580 and 670, thousands of UZS.
     url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=insurance&report_id=312&lang=ru'
     monkeypatch.setattr(settings, 'EXCEL_CACHE_PATH', tmp_path / 'cache.json')
@@ -194,3 +196,39 @@ def test_kasu_annual_reserves_survive_download_cache_turnover(monkeypatch, tmp_p
     corrected['sheets'][0]['table_rows'][0]['numeric_values'][-1] += 1
     cache._set_excel_cache(url, corrected, existing_only=True)
     assert not read()['ok']
+
+
+@pytest.mark.parametrize('outcome', ['verified', 'stale', 'partial'])
+def test_alsm_catalog_revision_refreshes_selected_workbook_offline(monkeypatch, tmp_path, outcome):
+    from collectors.openinfo import cache, settings
+    from reporting import store, worker
+
+    url = ('https://new-api.openinfo.uz/api/v2/reports/export-excel/'
+           '?report_type=quarter&org_type=insurance&report_id=816&lang=ru')
+    monkeypatch.setenv('SECTOR_ANALYSIS_DB', str(tmp_path / 'jobs.sqlite3'))
+    monkeypatch.setattr(settings, 'EXCEL_CACHE_PATH', tmp_path / 'excel.json')
+    balance_url = url + '&form=1' if outcome == 'partial' else url
+    monkeypatch.setattr(catalogue_filings, 'get_report_urls', lambda *a: {'excel_url': url, 'excel_url_form1': balance_url})
+    monkeypatch.setattr(catalogue_sources, '_financial_revision', lambda *a: 'latest')
+    parsed = {'ok': True, 'financial_revision': 'previous', 'parser_version': settings.EXCEL_PARSER_VERSION,
+              'reporting_date': '2026-09-30', 'sheets': [{'table_rows': []}], 'content_sha256': 'a' * 64}
+    cache._set_excel_cache(url, parsed)
+    calls = []
+    def download(ticker, form, year, quarter, **kwargs):
+        calls.append((ticker, form, year, quarter))
+        if outcome != 'stale':
+            cache._set_excel_cache(url, {**parsed, 'financial_revision': 'latest'})
+        return {'ok': True}
+    monkeypatch.setattr(catalogue_sources, 'fetch_report_excel_data', download)
+    filing = ('ALSM', 'NSBU', 2026, 3)
+    for _ in range(2):
+        assert not catalogue_sources.cached_report_excel_data(*filing)['ok']
+    assert not calls
+    assert len(store.due_jobs()) == 1
+    assert worker.run_pending() == 1
+    assert calls == [filing]
+    assert not store.due_jobs()
+    job = store.overview()['jobs'][0]
+    assert job['state'] == ('completed' if outcome == 'verified' else 'retry')
+    if outcome == 'verified':
+        assert catalogue_sources.cached_report_excel_data(*filing)['income']['financial_revision'] == 'latest'
