@@ -491,6 +491,69 @@ def test_live_bars_step_pushes_bars_only(monkeypatch):
     assert trading.push_live_bars() == 1
 
 
+@pytest.mark.parametrize("change", [None, "page_shift", "wrong_turnover", "newer_fill", "other_board"])
+def test_nov26_live_bars_with_a_100_row_archive_cap(monkeypatch, change):
+    # Actual first market page (100 of 8,579), screener totals and all filtered
+    # execution pages for UZTL (293 fills) and UTGA (3 fills) on 26 November.
+    sample = json.loads(gzip.decompress(Path(
+        "tests/fixtures/openinfo/live_bars_20261126.json.gz").read_bytes()))
+    issues = {item["board"]["isin_code"]: item for item in sample["issues"]}
+    uztl = "UZ7047110000"
+    if change == "wrong_turnover":
+        issues[uztl]["pages"][1]["results"][0]["trading_value"] += 1
+    if change == "newer_fill":
+        # Trading continued after the screener snapshot. The newer trade
+        # belongs to the next snapshot and must not inflate the published bar.
+        pages = issues[uztl]["pages"]
+        rows = [record for page in pages for record in page["results"]]
+        rows.insert(0, dict(rows[0], trade_datetime="2026-11-26T16:03:00"))
+        issues[uztl]["board"]["trade_datetime"] = "2026-11-26T11:02:00.519000Z"
+        for index, page in enumerate(pages):
+            page.update(count=len(rows), results=rows[100 * index:100 * (index + 1)])
+    if change == "other_board":
+        page = issues[uztl]["pages"][-1]
+        page["results"].append(dict(page["results"][-1], board_id="G2"))
+        for page in issues[uztl]["pages"]:
+            page["count"] += 1
+
+    class SessionClock(archive.datetime):
+        @classmethod
+        def now(cls, tz):
+            return cls(2026, 11, 26, 16, 5, tzinfo=tz)
+
+    def get(client, path, params):
+        if path.endswith("stock-screener/"):
+            return {"results": [i["board"] for i in issues.values()
+                                if i["board"]["market_id"] == params["mkt_id"]], "has_next": False}
+        assert path.endswith("trade-results/")
+        assert params["start_date"] == params["end_date"] == "2026-11-26"
+        if "isu_cd" not in params:
+            assert params["page"] == 1
+            return sample["head"]
+        filtered_calls.append((params["isu_cd"], params["page"]))
+        page = deepcopy(issues[params["isu_cd"]]["pages"][params["page"] - 1])
+        if change == "page_shift" and params["isu_cd"] == uztl and params["page"] == 2:
+            page["count"] += 1
+        return page
+
+    filtered_calls = []
+    monkeypatch.setattr(archive, "datetime", SessionClock)
+    monkeypatch.setattr(archive, "_json_get", get)
+    bars = archive.fetch_live_bars(session=object())
+    assert bars is not None
+    assert filtered_calls.count(("UZ7043380003", 1)) == 1  # whole ISIN snapshot in one response
+    assert [(b["hour"], b["quantity"]) for b in bars if b["isin"] == "UZ7043380003"] == [
+        (10, 2), (16, 1)]
+    uztl_bars = [b for b in bars if b["isin"] == uztl]
+    if change in ("page_shift", "wrong_turnover", "other_board"):
+        assert not uztl_bars
+    else:
+        assert [(b["hour"], b["quantity"]) for b in uztl_bars] == [
+            (10, 2184), (11, 2354), (12, 1047), (13, 90), (14, 435), (15, 462), (16, 4031)]
+        assert uztl_bars[-1]["close"] == 21900
+        assert sum(b["turnover"] for b in uztl_bars) == pytest.approx(230357437.21, abs=.005, rel=0)
+
+
 def coverage(monkeypatch, stats_day, quotes_day=None, official=None):
     import requests
     steps = {"trade_stats": {"last_day": stats_day},

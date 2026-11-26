@@ -45,7 +45,7 @@ def main() -> int:
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
 
     ap.add_argument("--intraday-only", action="store_true",
-                    help="only refresh today's hourly bars from openinfo (one request)")
+                    help="only refresh today's hourly bars from openinfo")
 
     ap.add_argument("--session-date", metavar="YYYY-MM-DD",
                     help="with --trades-only: publish this finished openinfo session, not the newest")

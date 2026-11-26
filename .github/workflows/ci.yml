@@ -1347,8 +1347,7 @@ jobs:
                   "Collect closing quotes and recover missing sessions",
                   "*-*-* 04:30:00", "Mon..Sat *-*-* 11:10:00", "Mon..Sat *-*-* 13:00:00",
                   "Mon..Sat *-*-* 16:30:00", "Mon..Sat *-*-* 18:30:00"),
-              # The 1Д/1Н chart during the session: one openinfo request an
-              # hour (the session so far in a single page), bars only. The
+              # The 1Д/1Н chart during the session: hourly bars from OpenInfo. The
               # board itself waits for the evening run and the conclusions.
               "/etc/systemd/system/uzstock-hourly-bars.service": worker(
                   "uzstock-hourly-bars", "UZStock hourly bars from openinfo's live executions",

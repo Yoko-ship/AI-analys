@@ -105,7 +105,8 @@ class SurplusRows(ValueError):
 
 
 def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
-                     max_pages: int = MAX_SESSION_PAGES, isin: str | None = None) -> list[dict]:
+                     max_pages: int = MAX_SESSION_PAGES, isin: str | None = None,
+                     recheck_single_page: bool = True) -> list[dict]:
     """Every board execution of one session, or ValueError — never a short read.
 
     Pin the session before pagination; require the advertised count on every
@@ -164,8 +165,11 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
                 trades.append(item)
         if page == pages:
             break
-    check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
-    if check != first or read < expected or (still_newest and _latest_day(client) != iso_day):
+    if pages > 1 or recheck_single_page:
+        check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
+        if check != first:
+            raise ValueError("archive session changed while being read")
+    if read < expected or (still_newest and _latest_day(client) != iso_day):
         raise ValueError("archive session changed while being read")
     if not trades:
         raise ValueError("archive session has no board executions")
@@ -207,15 +211,9 @@ def _verified_securities(client, trades, iso_day):
     return verified, withheld
 
 
-def _verify_provisional_turnover(client, iso_day, grouped, validation, max_pages):
-    """Cross-check each same-session screener board against its executions.
-
-    Market-wide pages can swap auction fills at tied timestamps while their
-    advertised count stays constant. A filtered read must explain the board's
-    shares AND money before its trades can supply statistics or hourly bars.
-    """
+def _session_boards(client, iso_day):
+    """Group the screener's stock and bond board totals for this session by ISIN."""
     expected = defaultdict(dict)
-    withheld = {item["isin"] for item in validation["withheld"]}
     for market in ("STK", "BND"):
         for page in range(1, MAX_SESSION_PAGES + 1):
             payload = _json_get(client, "/iuzse/stock-screener/",
@@ -224,7 +222,7 @@ def _verify_provisional_turnover(client, iso_day, grouped, validation, max_pages
                 if str(item.get("trade_datetime") or "")[:10] != iso_day:
                     continue
                 isin, board = item["isin_code"], item["board_id"]
-                if item["market_id"] != market or isin in withheld:
+                if item["market_id"] != market:
                     continue
                 expected[isin][market, board] = item
             if payload["has_next"] is False:
@@ -233,21 +231,27 @@ def _verify_provisional_turnover(client, iso_day, grouped, validation, max_pages
                 raise ValueError("Invalid market screener pagination")
         else:
             raise ValueError("Market screener exceeds page budget")
+    return expected
 
-    def matches(rows, boards):
-        for key, item in boards.items():
-            fills = [r for r in rows if (r["market_id"], r["board_id"]) == key]
-            if (sum(r["trade_quantity"] for r in fills) != _number(item["trade_quantity"])
-                    or round(math.fsum(r["trading_value"] for r in fills), 2) != round(_number(item["trade_volume"]), 2)):
-                return False
-        return True
 
-    for isin, boards in expected.items():
-        if matches(grouped.get(isin, []), boards):
+def _matches_board_turnover(rows, boards):
+    for key, item in boards.items():
+        fills = [r for r in rows if (r["market_id"], r["board_id"]) == key]
+        if (sum(r["trade_quantity"] for r in fills) != _number(item["trade_quantity"])
+                or round(math.fsum(r["trading_value"] for r in fills), 2) != round(_number(item["trade_volume"]), 2)):
+            return False
+    return True
+
+
+def _verify_provisional_turnover(client, iso_day, grouped, validation, max_pages):
+    """Check shares and money, since tied auction fills can shift between pages."""
+    withheld = {item["isin"] for item in validation["withheld"]}
+    for isin, boards in _session_boards(client, iso_day).items():
+        if isin in withheld or _matches_board_turnover(grouped.get(isin, []), boards):
             continue
         try:
             checked = _read_executions(client, iso_day, still_newest=False, max_pages=max_pages, isin=isin)
-            if not matches(checked, boards):
+            if not _matches_board_turnover(checked, boards):
                 raise ValueError("filtered executions disagree with the screener")
         except Exception as error:
             grouped.pop(isin, None)
@@ -581,15 +585,46 @@ def fetch_session_bars(iso_day: str, *, session: Any = None) -> list[dict] | Non
     return session_bars(trades, anchors)
 
 
-# One request reads the session so far: the archive answers page_size=10000
-# for a whole day (8 270 executions on 30.09). A live session read page by page
-# would shift under us as trades arrive — newest first, so every page would
-# repeat the executions pushed down from the one before.
+# Small sessions and servers that honour this size need only one request.
 _LIVE_PAGE = 10000
 
 
+def _local_timestamp(value):
+    stamp = datetime.fromisoformat(value)
+    return stamp.astimezone(TASHKENT) if stamp.tzinfo else stamp.replace(tzinfo=TASHKENT)
+
+
+def _paged_live_bars(client, iso_day):
+    # New fills move the whole market's offset pages. Pin each board to its
+    # screener snapshot and verify one ISIN at a time so other stocks can trade.
+    bars = []
+    for isin, boards in _session_boards(client, iso_day).items():
+        try:
+            rows = _read_executions(client, iso_day, still_newest=False, isin=isin,
+                                    recheck_single_page=False)
+            cutoffs = {key: _local_timestamp(item["trade_datetime"])
+                       for key, item in boards.items()}
+            snapshot = []
+            for row in rows:
+                key = (row["market_id"], row["board_id"])
+                if key not in boards:
+                    if not ts._is_block(row):
+                        raise ValueError("no screener totals for a traded board")
+                    continue
+                if _local_timestamp(row["trade_datetime"]) <= cutoffs[key]:
+                    snapshot.append(row)
+            if not _matches_board_turnover(snapshot, boards):
+                raise ValueError("execution totals differ from the board snapshot")
+            bars.extend(session_bars(snapshot, {}))
+        except Exception as error:
+            log.warning("OpenInfo live bars %s %s withheld: %s", iso_day, isin, error)
+    if not bars:
+        raise ValueError("no price-eligible bars verified from the paginated live session")
+    return bars
+
+
 def fetch_live_bars(*, session: Any = None) -> list[dict] | None:
-    """Hourly bars of TODAY's session so far, from one archive request.
+    """Hourly bars of today's session so far, from complete execution snapshots.
 
     The archive receives executions within seconds of the trade (02.10:
     10:39:33 visible at 10:39:30 + 3 s), while the day's conclusions come only
@@ -606,9 +641,12 @@ def fetch_live_bars(*, session: Any = None) -> list[dict] | None:
         payload = _json_get(client, "/iuzse/trade-results/", {
             "start_date": today, "end_date": today, "page": 1, "page_size": _LIVE_PAGE})
         records = payload["results"]
-        if int(payload["count"]) == 0:
-            return []
-        if int(payload["count"]) != len(records) or payload.get("has_next"):
+        count = int(payload["count"])
+        if (payload.get("has_next") is True and 0 < len(records) < count <= MAX_SESSION_RECORDS
+                and payload["current_page"] == 1 and len(records) == payload["page_size"]
+                and payload["total_pages"] == math.ceil(count / len(records))):
+            return _paged_live_bars(client, today)
+        if count != len(records) or payload.get("has_next") is not False:
             raise ValueError(f"live read is not the whole session ({len(records)} of {payload['count']})")
         trades = [t for t in (_board_execution(r, day) for r in records) if t is not None]
     except Exception:

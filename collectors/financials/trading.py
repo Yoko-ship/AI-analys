@@ -223,10 +223,9 @@ def push_trade_stats() -> int:
 def push_live_bars() -> int:
     """Refresh the 1Д/1Н chart's hourly bars from today's session so far.
 
-    One openinfo request per run (the hourly timer during trading). Only the
-    bars move: the board's day statistics wait for the close — the 16:10 run
-    publishes them provisionally from the executions, the next morning's run
-    officially from the conclusions.
+    The hourly timer publishes bars during trading. The 16:10 collector
+    publishes provisional daily statistics after the close. A later run
+    replaces them when OpenInfo posts its conclusions.
     """
     bars = archive_market.fetch_live_bars()
     if bars is None:
