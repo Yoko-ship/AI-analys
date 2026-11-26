@@ -37,6 +37,8 @@ def source(monkeypatch):
 
     def get(client, path, params):
         state["calls"].append((path, params))
+        if path.endswith("stock-screener/"):
+            return {"results": [], "has_next": False}
         if path.endswith("conclusions/"):
             return {"ticker": "KFSK", "name": "Kafolat", "results": deepcopy(state["conclusions"])}
         if "start_date" not in params:
@@ -629,3 +631,38 @@ def test_a_row_beyond_the_count_without_conclusions_is_refused(monkeypatch):
 def test_many_securities_out_of_line_still_refuse_the_session(monkeypatch):
     _session_of_ten(monkeypatch, bad=("UZ7000000000", "UZ7000000001"))  # 2 of 10: more than one in ten
     assert not archive.fetch_latest_trade_stats(session=object())["complete"]
+
+
+@pytest.mark.parametrize("filtered_matches", [True, False])
+def test_provisional_iptb_uses_verified_board_turnover_before_daily_conclusions(monkeypatch, filtered_matches):
+    day, isin = "2026-11-26", "UZ7054570005"
+    # Summarize the other executions in one row so the closing trade stays visible.
+    def trade(qty, value):
+        return execution(isin_code=isin, ticker="IPTB", trade_datetime=day + "T16:02:00.519000",
+                         trade_price=6.94, trade_quantity=qty, trading_value=value)
+
+    stale = [trade(8957403, 60734948.75)]
+    correct = [trade(9164647, 62173222.11), trade(249804779, 1733645166.26)]
+    def source(client, path, params):
+        if path.endswith("stock-screener/"):
+            rows = [{"isin_code": isin, "ticker": "IPTB", "market_id": "STK", "board_id": "G1",
+                     "trade_datetime": day + "T16:02:00.519000", "trade_volume": 1795818388.37,
+                     "trade_quantity": 258969426}] if params["mkt_id"] == "STK" else []
+            return {"results": rows, "has_next": False}
+        if path.endswith("conclusions/"):
+            return {"ticker": "IPTB", "results": [conclusion(date="2026-11-25")]}
+        if "start_date" not in params:
+            return {"results": stale}
+        rows = correct if params.get("isu_cd") and filtered_matches else stale
+        return {"results": rows, "count": len(rows), "total_pages": 1, "current_page": 1,
+                "page_size": 100, "has_next": False}
+
+    monkeypatch.setattr(archive, "_json_get", source)
+    monkeypatch.setattr(archive, "_session_finished", lambda date: True)
+    data = archive.fetch_latest_trade_stats(session=object())
+    if filtered_matches:
+        assert data["stats"][isin]["total_value"] == data["quotes"][0]["turnover"] == 1795818388.37
+        assert data["stats"][isin]["total_qty"] == 258969426
+        assert data["intraday"][0]["quantity"] == 258969426
+    else:
+        assert not data["complete"] and isin not in data["stats"] and not data["intraday"]

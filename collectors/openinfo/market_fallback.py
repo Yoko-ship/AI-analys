@@ -207,6 +207,57 @@ def _verified_securities(client, trades, iso_day):
     return verified, withheld
 
 
+def _verify_provisional_turnover(client, iso_day, grouped, validation, max_pages):
+    """Cross-check each same-session screener board against its executions.
+
+    Market-wide pages can swap auction fills at tied timestamps while their
+    advertised count stays constant. A filtered read must explain the board's
+    shares AND money before its trades can supply statistics or hourly bars.
+    """
+    expected = defaultdict(dict)
+    withheld = {item["isin"] for item in validation["withheld"]}
+    for market in ("STK", "BND"):
+        for page in range(1, MAX_SESSION_PAGES + 1):
+            payload = _json_get(client, "/iuzse/stock-screener/",
+                                {"mkt_id": market, "page_size": 100, "page": page})
+            for item in payload["results"]:
+                if str(item.get("trade_datetime") or "")[:10] != iso_day:
+                    continue
+                isin, board = item["isin_code"], item["board_id"]
+                if item["market_id"] != market or isin in withheld:
+                    continue
+                expected[isin][market, board] = item
+            if payload["has_next"] is False:
+                break
+            if payload["has_next"] is not True or not payload["results"]:
+                raise ValueError("Invalid market screener pagination")
+        else:
+            raise ValueError("Market screener exceeds page budget")
+
+    def matches(rows, boards):
+        for key, item in boards.items():
+            fills = [r for r in rows if (r["market_id"], r["board_id"]) == key]
+            if (sum(r["trade_quantity"] for r in fills) != _number(item["trade_quantity"])
+                    or round(math.fsum(r["trading_value"] for r in fills), 2) != round(_number(item["trade_volume"]), 2)):
+                return False
+        return True
+
+    for isin, boards in expected.items():
+        if matches(grouped.get(isin, []), boards):
+            continue
+        try:
+            checked = _read_executions(client, iso_day, still_newest=False, max_pages=max_pages, isin=isin)
+            if not matches(checked, boards):
+                raise ValueError("filtered executions disagree with the screener")
+        except Exception as error:
+            grouped.pop(isin, None)
+            validation["partial"] = True
+            validation["withheld"].append({"isin": isin, "ticker": next(iter(boards.values()))["ticker"]})
+            log.warning("OpenInfo %s %s provisional turnover withheld: %s", iso_day, isin, type(error).__name__)
+        else:
+            grouped[isin] = checked
+
+
 # The most securities whose official conclusion may stand in for executions
 # that disagree with it — at most five, and at most one in ten of the traded
 # ones — before the session is treated as misread instead.
@@ -311,7 +362,11 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             # run that finds the conclusions publishes the official one over it.
             if not _session_finished(iso_day):
                 raise ValueError(f"session {iso_day} is still trading and has no conclusions")
-            quotes = [q for q in quotes if q["isin"] not in traded] + [
+            _verify_provisional_turnover(client, iso_day, grouped, validation, max_pages)
+            trades = [trade for rows in grouped.values() for trade in rows]
+            stats = {isin: ts._aggregate(isin, rows, day) for isin, rows in grouped.items()}
+            traded = [isin for isin, row in stats.items() if row["trade_count"]]
+            quotes = [q for q in quotes if q["isin"] in stats and q["isin"] not in traded] + [
                 _provisional_quote(isin, stats[isin], grouped[isin], quoted.get(isin), day)
                 for isin in traded]
             log.info("OpenInfo fallback: %s provisional from %d executions, %d securities "

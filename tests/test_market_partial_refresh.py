@@ -99,6 +99,8 @@ def real_source(monkeypatch):
 
     def get(client, path, params):
         state['calls'].append((path, params.copy()))
+        if path.endswith("stock-screener/"):
+            return {"results": [], "has_next": False}
         if path.endswith('conclusions/'):
             return {'ticker': params['isu_cd'], 'results': [{'date': '2026-10-20',
                 'open': 1, 'close': 1, 'high': 1, 'low': 1, 'change': 0,
