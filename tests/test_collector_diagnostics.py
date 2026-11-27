@@ -22,9 +22,18 @@ def test_diagnostics_preserve_errors_hidden_by_the_journal_tail(tmp_path):
     conn.set_authorizer(lambda action, *_: sqlite3.SQLITE_DENY if action in {
         sqlite3.SQLITE_INSERT, sqlite3.SQLITE_UPDATE, sqlite3.SQLITE_DELETE,
         sqlite3.SQLITE_CREATE_TABLE, sqlite3.SQLITE_DROP_TABLE} else sqlite3.SQLITE_OK)
-    result = snapshot(conn, report)
+    operations = {'observer': {'online': True}, 'items': [
+        {'id': 'terminal-cbu', 'latest': {'status': 'completed', 'publication': 'acknowledged',
+                                        'receipts': [{'stage': 'inflation', 'ok': True}]}},
+        {'id': 'financial-ingestion', 'latest': {'status': 'running'}},
+    ]}
+    result = snapshot(conn, report, operations)
     assert result['bulk_run']['errors'] == [{'ticker': 'INFB', 'reason': 'Annual statement mismatch'}]
     assert result['failed_jobs'][0]['error'] == 'HTTP 404'
     assert result['failed_jobs'][0]['ticker'] == 'INFB'
     assert result['failed_disclosures'][0]['source_url'] == 'https://openinfo.uz/facts/1'
     assert result['bulk_summary']['failed_jobs'] == 20
+    assert result['observer'] == {'online': True}
+    assert result['collectors'][0]['latest']['publication'] == 'acknowledged'
+    assert result['collectors'][0]['latest']['receipts'][0]['stage'] == 'inflation'
+    assert result['collectors'][1]['latest']['status'] == 'running'

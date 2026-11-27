@@ -3,10 +3,16 @@ import json
 from pathlib import Path
 
 
-def snapshot(conn, report_path):
+def snapshot(conn, report_path, operations=None):
     report = json.loads(Path(report_path).read_text()) if Path(report_path).is_file() else {}
     run = report.get('run', {})
+    operations = operations or {}
     return {
+        'observer': operations.get('observer', {}),
+        'collectors': [{'id': item['id'], 'latest': {
+            key: value for key, value in item['latest'].items()
+            if key in {'status', 'publication', 'started_at', 'finished_at', 'reason', 'receipts', 'exit_code'}
+        }} for item in operations.get('items', [])],
         'bulk_summary': report.get('summary', {}),
         'bulk_run': {key: run[key] for key in ('started_at', 'finished_at', 'errors', 'processing',
                                              'catalog_sync', 'unresolved_tickers') if key in run},
@@ -24,9 +30,10 @@ if __name__ == '__main__':
     from catalogue.storage import get_catalog_conn
     from db import APP_DATA_DIR
     from collection_ops.model import scrub
+    from collection_ops.store import overview
 
     conn = get_catalog_conn()
     try:
-        print(scrub(json.dumps(snapshot(conn, APP_DATA_DIR / 'bulk-financial-report.json'), ensure_ascii=True)))
+        print(scrub(json.dumps(snapshot(conn, APP_DATA_DIR / 'bulk-financial-report.json', overview()), ensure_ascii=True)))
     finally:
         conn.close()
