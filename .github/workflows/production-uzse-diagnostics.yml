@@ -74,6 +74,15 @@ jobs:
           PY
           } 2>&1 | python3 scripts/ci_log.py collection-monitor-diagnostic 140
           REMOTE
+      - name: Read retained financial and disclosure failures
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            'docker exec -i uzstock-web python -' < scripts/diagnose_collectors.py
       - name: Compare production container and host source access
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
