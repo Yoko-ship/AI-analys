@@ -252,19 +252,24 @@ _FIGURE_FORMATTERS = {
 _FIGURE_MAX_FETCH = 8
 
 
-def _fact_detail(fact_id):
-    """One filing's own fields from ``/disclosure/facts/{id}/``, or None on any failure."""
+def _fact_detail(fact_id, *, required=False):
+    """Read filing fields; scheduled enrichment retains the actual source failure."""
     try:
         import openinfo_http
         from collectors.openinfo.settings import OPENINFO_API_BASE
 
         resp = openinfo_http.get(f"{OPENINFO_API_BASE}/disclosure/facts/{fact_id}/", timeout=40)
         resp.raise_for_status()
-        payload = (resp.json() or {}).get("fact") or []
+        body = resp.json() or {}
+        payload = body.get("fact") or []
     except Exception as exc:  # noqa: BLE001 — enrichment is never worth failing a run over
+        if required:
+            raise
         collectors_news_settings.logger.debug("fact detail failed for %s: %s", fact_id, exc)
         return None
     fact = payload[0] if isinstance(payload, list) and payload else payload
+    if required and (not isinstance(fact, dict) or not fact):
+        raise ValueError(f"OpenInfo fact {fact_id} (type {body.get('type')}) has no detail body")
     return fact if isinstance(fact, dict) else None
 
 

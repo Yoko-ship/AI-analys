@@ -173,6 +173,35 @@ def test_inflation_uses_december_headline_not_core_or_partial_year():
     assert records[-1]['source_url']==fixture['source_url']
 
 
+def test_inflation_collects_the_current_month_year_table(monkeypatch):
+    import requests
+    from html import escape
+    from types import SimpleNamespace
+    fixture=json.loads((Path(__file__).parent/'fixtures/cbu_inflation_20261127.json').read_text())
+    html='<table>'+''.join('<tr>'+''.join('<td>'+escape(c)+'</td>' for c in row)+'</tr>'
+                          for row in fixture['rows'])+'</table>'
+    calls=[];saved=[]
+    def get(url, **kwargs):
+        calls.append(url)
+        return SimpleNamespace(text=html,raise_for_status=lambda:None)
+    monkeypatch.setattr(requests,'get',get)
+    monkeypatch.setattr(cbu,'latest',lambda kind:[])
+    monkeypatch.setattr(cbu,'save',lambda *args:saved.append(args))
+    records=cbu.sync_inflation()
+    assert {r['period']:r['value'] for r in records}['2026-10']==6.5
+    assert cbu.annual_inflation(records)=={'2025':7.3}
+    assert len(calls)==2  # Repeated pages terminate without dropping the first page.
+    assert saved[0][:2]==('inflation','2026-10')
+
+
+@pytest.mark.parametrize('bad_date',['13.2026','32.12.2025','2026','2026-10'])
+def test_inflation_does_not_accept_ambiguous_or_invalid_periods(bad_date, monkeypatch):
+    monkeypatch.setattr(cbu.journal,'emit',lambda *args,**kwargs:None)
+    with pytest.raises(cbu.FormatChanged):
+        cbu.parse_inflation([['Date','Headline inflation compared to the same month'],
+                             [bad_date,'6.5']],cbu.INFLATION_URL)
+
+
 def test_official_sector_spreadsheets_keep_percentage_units_and_both_dates():
     fixture=json.loads((Path(__file__).parent/'fixtures/cbu_sector_202609.json').read_text())
     data={k:cbu.parse_sector_rows(v['rows'],k,v['source_url']) for k,v in fixture.items()}

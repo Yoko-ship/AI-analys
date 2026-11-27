@@ -450,7 +450,7 @@ def refresh_document(source):
         fact_id=(existing or {}).get("global_fact_id") or (parse_qs(parts.query).get("fact") or [None])[0]
         if not fact_id or not str(fact_id).isdigit():
             raise ValueError("No stored source identifier")
-        detail=_fact_detail(fact_id)
+        detail=_fact_detail(fact_id,required=True)
         if not detail:
             raise RuntimeError("Source unavailable")
         document=from_fact(detail,source_url=source,tickers=tickers)

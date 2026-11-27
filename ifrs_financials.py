@@ -31,7 +31,9 @@ VERSION = "ifrs-pdf-reviewed-v1"
 FIELDS = ("cash", "total_assets", "total_liabilities", "total_equity",
           "interest_income", "interest_expense", "operating_income",
           "operating_expenses", "net_income")
-MAX_BYTES = 25 * 1024 * 1024
+# Official scanned statements range up to 76.8 MB (UTGA, checked Nov 2026).
+# Keep the same finite ceiling already used for approved/reviewed originals.
+MAX_BYTES = 100 * 1024 * 1024
 
 
 def reviews() -> list[dict]:

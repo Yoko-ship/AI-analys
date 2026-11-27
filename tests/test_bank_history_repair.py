@@ -133,6 +133,25 @@ def test_failed_bank_is_marked_partial_and_does_not_starve_others(catalog, monke
     assert {f["value_text"] for f in catalogue_facts.get_facts(dataset="bank_history") if f["field"] == "status"} == {"partial"}
 
 
+def test_infb_rejected_undated_annual_does_not_abort_verified_history(catalog, monkeypatch, capsys):
+    filing(catalog, 'INFB', '25')
+    reason='NSBU annual bank/24: Annual statement does not match the approval or fiscal year-end'
+    monkeypatch.setattr(catalogue_sync,'sync_company',lambda *a,**kw:{'org_id':'25','errors':[reason]})
+    monkeypatch.setattr(catalogue_history,'repair_statement_links',lambda *a:{'repaired':[],'unresolved':[]})
+    calls=[]
+    monkeypatch.setattr(collectors_financials_backfill,'backfill_company_quarter_history',lambda ticker,**kw:calls.append(('discover',ticker)) or 0)
+    monkeypatch.setattr(collectors_financials_backfill,'backfill_financials',lambda year,*,tickers:calls.append(('annual',next(iter(tickers)))) or 0)
+    monkeypatch.setattr(collectors_financials_backfill,'backfill_quarterly_financials',lambda year,*,tickers:calls.append(('quarter',next(iter(tickers)))) or 0)
+    monkeypatch.setattr(collectors_financials_delivery,'_post',lambda *a:0)
+    monkeypatch.setattr(collectors_financials_delivery,'_stamp_step',lambda *a:None)
+    assert collectors_financials_backfill.backfill_bank_financials(force=True,ticker='INFB')==1
+    assert calls==[('discover','INFB'),('annual','INFB'),('quarter','INFB')]
+    from collection_ops.model import parse_receipts
+    receipts=parse_receipts(capsys.readouterr().out.splitlines())
+    assert any(r['ok'] is False and r['reason']==reason and r['stage']=='bank_history/INFB/catalog' for r in receipts)
+    assert {f['value_text'] for f in catalogue_facts.get_facts(dataset='bank_history') if f['field']=='status'}=={'partial'}
+
+
 def test_empty_failed_harvest_is_not_a_success(monkeypatch):
     monkeypatch.setattr(catalogue_history, "harvest_historical_quarters", lambda *a, **kw: {"rows": [], "errors": ["download failed"]})
     assert collectors_financials_backfill.backfill_company_quarter_history("BANK") == 1

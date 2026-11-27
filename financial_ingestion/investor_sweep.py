@@ -5,6 +5,7 @@ from datetime import date
 import json
 import logging
 import time
+from urllib.parse import urlsplit
 
 from catalogue import sources
 from catalogue.sources import cached_report_excel_data
@@ -97,18 +98,25 @@ def _filing_rounds(ids):
     """Order by the filing's publication date, never by when the crawler last saw it."""
     with closing(store.connect()) as conn:
         rows = conn.execute("""
-            SELECT s.org_id,s.id,s.url,s.metadata_json,v.sha,'' AS period_end
+            SELECT s.org_id,s.id,s.url,s.metadata_json,v.sha,'' AS period_end,a.media_type
             FROM ingest_sources s LEFT JOIN ingest_versions v ON v.id=s.latest_version
+            LEFT JOIN ingest_artifacts a ON a.sha=v.sha
             WHERE s.category='MSFO'
             UNION ALL
-            SELECT h.org_id,s.id,s.url,v.metadata_json,v.sha,MAX(h.period_end)
+            SELECT h.org_id,s.id,s.url,v.metadata_json,v.sha,MAX(h.period_end),a.media_type
             FROM ingest_heads h JOIN ingest_snapshots p ON p.id=h.snapshot_id
             JOIN ingest_candidates c ON c.id=p.candidate_id JOIN ingest_versions v ON v.id=c.version_id
-            JOIN ingest_sources s ON s.id=v.source_id WHERE h.standard='MSFO'
-            GROUP BY h.org_id,s.id,s.url,v.metadata_json,v.sha
+            JOIN ingest_sources s ON s.id=v.source_id
+            JOIN ingest_artifacts a ON a.sha=v.sha WHERE h.standard='MSFO'
+            GROUP BY h.org_id,s.id,s.url,v.metadata_json,v.sha,a.media_type
         """).fetchall()
     issuers = defaultdict(dict)
     for row in rows:
+        # XLSX originals already have their own importer. Feeding their ZIP
+        # bytes to PDFium is a format-routing error, not a damaged source PDF.
+        if ((row['media_type'] and row['media_type'] != 'application/pdf')
+                or urlsplit(row['url']).path.lower().endswith(('.xlsx','.doc','.docx','.jpg','.jpeg','.png'))):
+            continue
         if row['org_id'] not in ids or (not row['sha'] and not source_policy.allows(row['url'])):
             continue
         meta = json.loads(row['metadata_json'])

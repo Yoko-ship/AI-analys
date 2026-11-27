@@ -50,6 +50,47 @@ def test_historical_enrichment_is_bounded_and_does_not_retry_every_page_load(mon
     assert backfill.run(limit=2,now=now+timedelta(days=8))['attempted']==2
 
 
+def test_unavailable_uzng_disclosure_keeps_its_error_and_retries_next_day(monkeypatch,tmp_path,capsys):
+    import corporate_event_backfill as backfill
+    import corporate_events as ce
+    import catalogue.storage as cs
+    from collection_ops.model import outcome,parse_receipts
+    monkeypatch.setenv('CATALOG_DB_PATH',str(tmp_path/'events.db'))
+    source='https://openinfo.uz/ru/organizations/735?fact=99458'
+    good='https://openinfo.uz/ru/organizations/735?fact=99459'
+    reason='OpenInfo fact 99458 (type 54) has no detail body'
+    monkeypatch.setattr(ce,'feed',lambda *a,**k:{'items':[{'documents':[{'source_url':source},{'source_url':good}]}]})
+    calls=[]
+    def refresh(url):
+        calls.append(url)
+        if url==source:raise ValueError(reason)
+        return {}
+    monkeypatch.setattr(ce,'refresh_document',refresh)
+    now=datetime(2026,11,26,14,20,tzinfo=timezone.utc)
+    result=backfill.run(now=now)
+    assert result['errors']==[{'source_url':source,'reason':reason}]
+    with cs.get_catalog_conn() as c:
+        assert c.execute('SELECT last_error FROM corporate_event_checks WHERE source_url=?',(source,)).fetchone()['last_error']==reason
+    receipts=parse_receipts(capsys.readouterr().out.splitlines())
+    observed=outcome({'invocation':'real-failure','result':'exit-code','exit_code':1,'receipts':receipts})
+    assert observed['status']=='partial' and observed['publication']=='acknowledged'
+    assert backfill.run(now=now)['attempted']==0
+    assert backfill.run(now=now+timedelta(days=1,seconds=1))['attempted']==1
+    assert calls==[source,good,source]
+
+
+def test_empty_openinfo_detail_is_distinguished_from_a_transport_failure(monkeypatch):
+    from types import SimpleNamespace
+    from collectors.news.facts import _fact_detail
+    import openinfo_http
+    payload={'id':99458,'type':54,'object_id':68,'status':'approved','fact':''}
+    monkeypatch.setattr(openinfo_http,'get',lambda *a,**kw:SimpleNamespace(
+        json=lambda:payload,raise_for_status=lambda:None))
+    assert _fact_detail('99458') is None
+    with pytest.raises(ValueError,match=r'OpenInfo fact 99458 \(type 54\) has no detail body'):
+        _fact_detail('99458',required=True)
+
+
 def test_rechecks_visit_oldest_evidence_before_recently_checked_documents(monkeypatch,tmp_path):
     import corporate_event_backfill as backfill
     import corporate_events as ce

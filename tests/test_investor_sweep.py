@@ -152,6 +152,24 @@ def test_approved_file_hash_binds_automatic_eps_and_caches_scan(monkeypatch, tmp
     assert not investor_eps.published_rows(snapshot)
 
 
+def test_pdf_eps_scan_leaves_uznf_workbook_to_the_workbook_importer(monkeypatch,tmp_path):
+    from financial_ingestion import documents,investor_sweep,store,workbooks
+    monkeypatch.setenv('CATALOG_DB_PATH',str(tmp_path/'catalog.db'))
+    url='https://openinfo.uz/media/msfo/33ce9408-a087-4411-83d8-f310d423fa47.xlsx'
+    sha='46a4720131109eedf9a6102d831090768ca7cd2544209c5168b9f64436c98ac6'
+    with store.transaction() as c:
+        source=documents.register(c,org_id='1059',ticker='UZNF',url=url,category='MSFO',metadata={},processor='test')
+        c.execute('INSERT INTO ingest_artifacts VALUES (?,?,?,?,?)',(sha,'original.xlsx',41237,workbooks.MEDIA_TYPE,'2026-11-27'))
+        c.execute('INSERT INTO ingest_versions VALUES (?,?,?,?,?)',('xlsx-version',source,sha,'{}','2026-11-27'))
+        c.execute('UPDATE ingest_sources SET latest_version=? WHERE id=?',('xlsx-version',source))
+        pdf=documents.register(c,org_id='1059',ticker='UZNF',url='https://openinfo.uz/media/msfo/uznf-annual.pdf',
+                               category='MSFO',metadata={'period_type':'annual','published_at':'2026-05-01'},processor='test')
+    latest,history=investor_sweep._filing_rounds({'1059'})
+    assert [r[2] for r in latest+history]==[pdf]
+    with store.connect() as c:
+        assert c.execute('SELECT latest_version FROM ingest_sources WHERE id=?',(source,)).fetchone()['latest_version']=='xlsx-version'
+
+
 def test_marketwide_inventory_lists_unlinked_ordinary_stocks_and_keeps_sibling_classes_together(monkeypatch, tmp_path):
     from catalogue.storage import get_catalog_conn
     from financial_ingestion import investor_sweep

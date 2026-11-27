@@ -81,6 +81,34 @@ def test_download_reviewed_issuer_source_and_limits(monkeypatch, url):
         ifrs.download_pdf(url)
 
 
+@pytest.mark.parametrize('size,accepted', [(76_806_614,True),(100*1024*1024+1,False)])
+def test_official_utga_scan_size_and_download_ceiling(monkeypatch, size, accepted):
+    # UTGA's actual official audit scan is 76,806,614 bytes (27 Nov 2026).
+    url='https://openinfo.uz/media/audit_conclusion/Отчёт_внешнего_аудитора.pdf'
+    import openinfo_http
+    from financial_ingestion import extract
+    monkeypatch.setattr(extract,'review_entries',lambda:[])
+    monkeypatch.setattr(openinfo_http,'_pace',lambda:None)
+    class Response:
+        status_code=200
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def raise_for_status(self):pass
+        def iter_content(self,chunk_size):
+            yield b'%PDF-'
+            remaining=size-5
+            chunk=b'0'*chunk_size
+            while remaining:
+                take=min(remaining,chunk_size)
+                yield chunk[:take]
+                remaining-=take
+    monkeypatch.setattr(ifrs.requests,'get',lambda *a,**kw:Response())
+    if accepted:
+        assert len(ifrs.download_pdf(url))==size
+    else:
+        with pytest.raises(ValueError,match='download limit'):ifrs.download_pdf(url)
+
+
 @pytest.fixture
 def review(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "ifrs.db"))

@@ -55,3 +55,14 @@ def test_reported_eps_backfill_only_runs_explicitly_on_the_tested_release():
     assert "inputs.backfill_reported_eps" in job and "'[backfill-reported-eps]'" in job
     assert job.index('test "$(git rev-parse HEAD)"') < job.index('python -u -m financial_ingestion.investor_sweep')
     assert job.index('org.opencontainers.image.revision') < job.index('python -u -m financial_ingestion.investor_sweep')
+
+
+def test_collector_recovery_starts_existing_units_only_on_the_tested_release():
+    _, workflow = units()
+    job = workflow.split('  recover-collectors:', 1)[1].split('  backfill-governance:', 1)[0]
+    assert "'[recover-collectors]'" in job and 'needs: deploy-production' in job
+    assert job.index('test "$(git rev-parse HEAD)"') < job.index('systemctl start --no-block')
+    assert job.index('org.opencontainers.image.revision') < job.index('systemctl start --no-block')
+    for name in ('terminal-cbu', 'bank-history', 'event-evidence', 'financial-ingestion'):
+        assert f'uzstock-{name}.service' in job
+    assert 'docker build' not in job

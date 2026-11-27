@@ -112,7 +112,7 @@ def test_collector_preserves_each_document_even_when_editorial_story_is_grouped(
         def json(self): return {"results": rows}
     monkeypatch.setattr(openinfo_http, "get", lambda *a, **k: Response())
     monkeypatch.setattr(issuers, "_openinfo_ticker_map", lambda: {"399": ["UZGF", "UZGFP"]})
-    monkeypatch.setattr(facts, "_fact_detail", lambda n: {**recommendations()[0], "id": n, "fact_identifier": f"f-41-{n}"})
+    monkeypatch.setattr(facts, "_fact_detail", lambda n, **kw: {**recommendations()[0], "id": n, "fact_identifier": f"f-41-{n}"})
     items = filings.fetch_openinfo({}, 10)
     assert len(items) == 1
     docs = items[0]["disclosure_documents"]

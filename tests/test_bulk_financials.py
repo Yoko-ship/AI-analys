@@ -67,6 +67,22 @@ def test_terminal_failure_requires_explicit_retry(setup):
     assert bulk.queue_state(["23"])["FETCH"] == 1
 
 
+def test_old_download_limit_failure_retries_once_after_fetch_policy_upgrade(setup):
+    url='https://openinfo.uz/media/int_report/cd722dbe-f284-49c4-a0cc-9c305ca1b61a.pdf'
+    registration=dict(org_id='528',ticker='UTYK',url=url,category='MSFO',metadata={},processor='test')
+    with store.transaction() as c:
+        source=documents.register(c,**registration)
+        c.execute("UPDATE ingest_jobs SET state='FAILED',attempts=3,processor='bounded-openinfo-v1',"
+                  "error='IFRS PDF exceeds download limit' WHERE source_id=?",(source,))
+        documents.register(c,**registration)
+        row=c.execute("SELECT * FROM ingest_jobs WHERE source_id=? AND stage='FETCH'",(source,)).fetchone()
+        assert row['state']=='QUEUED' and row['attempts']==0
+        assert row['processor']==documents.FETCH_VERSION and row['processor']!='bounded-openinfo-v1'
+        c.execute("UPDATE ingest_jobs SET state='FAILED',error='IFRS PDF exceeds download limit' WHERE id=?",(row['id'],))
+        documents.register(c,**registration)
+        assert c.execute('SELECT state FROM ingest_jobs WHERE id=?',(row['id'],)).fetchone()['state']=='FAILED'
+
+
 def test_complete_reviewed_native_source_is_not_scheduled_for_ocr(setup):
     documents.discover(ticker="BRBN", processor=extract.processor_version())
     worker.run(max_jobs=4, fetch=lambda _: setup[1])
@@ -117,6 +133,23 @@ def test_report_written_after_discovery_failure(setup, monkeypatch, tmp_path):
     report = json.loads(path.read_text())
     assert report["run"]["errors"][0]["reason"] == "source unavailable"
     assert report["publication_performed"] is False
+
+
+def test_bulk_receipt_keeps_retained_source_failures_and_confirmed_nsbu_writes(capsys):
+    from collection_ops.model import outcome,parse_receipts
+    report={'run':{'processing':{'processed':452},'nsbu_history':{'complete':2,'partial':3},
+                   'errors':[{'ticker':'INFB','errors':['NSBU annual bank/24: missing fiscal year']}]},
+            'issuers':[{'ticker':'UTGA','sources':[{'failures':[{'error':'IFRS PDF exceeds download limit',
+                       'url':'https://openinfo.uz/media/audit_conclusion/report.pdf'}]}], 'discovery_errors':[]}],
+            'summary':{'failed_jobs':20,'discovery_errors':0}}
+    bulk.report_receipts(report)
+    receipts=parse_receipts(capsys.readouterr().out.splitlines())
+    result=outcome({'invocation':'20261127','result':'exit-code','exit_code':1,'receipts':receipts})
+    assert result['status']=='partial' and result['publication']=='acknowledged'
+    assert any(r['phase']=='publication' and r['counts'].get('written')==5 for r in receipts)
+    assert any(r['ok'] is False and 'INFB' in r['stage'] and 'missing fiscal year' in r['reason'] for r in receipts)
+    assert any(r['ok'] is False and 'UTGA' in r['stage'] and 'download limit' in r['reason'] for r in receipts)
+    assert not any(r['phase']=='publication' and 452 in r.get('counts',{}).values() for r in receipts)
 
 
 def test_investor_inventory_in_report_only_mode_is_scoped_and_offline(setup, monkeypatch, tmp_path):

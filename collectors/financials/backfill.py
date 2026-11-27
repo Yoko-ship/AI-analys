@@ -536,7 +536,15 @@ def backfill_bank_financials(limit: int = 2, *, force: bool = False,
         try:
             sync = catalogue_sync.sync_company(ticker, company["company_name"], force=True, org_id=org_id)
             if sync.get("errors"):
-                raise RuntimeError("; ".join(sync["errors"]))
+                from collection_ops.model import receipt
+                for error in sync['errors']:
+                    receipt(f'bank_history/{ticker}/catalog', ok=False, phase='collection', reason=error)
+                # A rejected individual filing must not prevent valid catalogued
+                # statements from being repaired and published. Identity failures
+                # still stop this issuer before any downstream work.
+                if str(sync.get('org_id') or '') != org_id:
+                    raise RuntimeError('; '.join(sync['errors']))
+                result = 1
             links = catalogue_history.repair_statement_links(ticker)
             collectors_financials_settings.log.info("bank history %s: recovered %d document links (%d unresolved)",
                      ticker, len(links["repaired"]), len(links["unresolved"]))

@@ -21,6 +21,41 @@ from . import disclosures, documents, extract, source_policy, store, worker
 log = logging.getLogger(__name__)
 
 
+def report_receipts(report):
+    """Keep source failures visible after progress messages leave the journal tail."""
+    from collection_ops.model import receipt
+
+    run=report.get('run',{})
+    issues={}
+    def add(ticker, issue):
+        reasons=issue.get('errors') or [issue.get('reason') or issue.get('error') or 'Unknown source failure']
+        for reason in reasons:
+            context={k:issue[k] for k in ('year','quarter','period','stage','url') if k in issue}
+            text=str(reason)+((' '+json.dumps(context,ensure_ascii=True)) if context else '')
+            issues[(ticker,text)]=None
+    for issue in run.get('errors',[]):
+        add(issue.get('ticker') or issue.get('issuer_id') or 'source',issue)
+    for issuer in report.get('issuers',[]):
+        for issue in issuer.get('discovery_errors',[]):
+            add(issuer['ticker'],issue)
+        for source in issuer.get('sources',[]):
+            for issue in source.get('failures',[]):
+                add(issuer['ticker'],issue)
+    for ticker,reason in list(issues)[:80]:
+        receipt('financial_documents/'+str(ticker),ok=False,phase='collection',reason=reason)
+    summary=report.get('summary',{})
+    receipt('financial_documents/summary',ok=not issues and not summary.get('failed_jobs')
+            and not summary.get('discovery_errors'),phase='collection',
+            counts={'processed':run.get('processing',{}).get('processed',0),
+                    'failed_jobs':summary.get('failed_jobs',0),'source_errors':len(issues)},
+            reason=f"{len(issues)} source errors; {summary.get('failed_jobs',0)} failed document jobs. "
+                   'Full details are retained in the bulk financial report.')
+    nsbu=run.get('nsbu_history',{})
+    written=nsbu.get('complete',0)+nsbu.get('partial',0)
+    if written:
+        receipt('financial_documents/nsbu',ok=True,phase='publication',counts={'written':written})
+
+
 def write_report(path, report):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -296,6 +331,8 @@ def main(argv=None):
         report["investor_metrics"] = coverage_report
     report["run"] = {**run, "finished_at": store.now(), "elapsed_seconds": round(time.monotonic() - started, 1)}
     write_report(args.report, report)
+    if not args.report_only:
+        report_receipts(report)
     log.info("Coverage and missing-data report: %s", args.report)
     # A drained queue means parsed, not reviewed, published, or complete history.
     if run.get("interrupted"):

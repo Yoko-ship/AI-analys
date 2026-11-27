@@ -1716,6 +1716,44 @@ jobs:
           PY
           REMOTE
 
+  recover-collectors:
+    name: Resume collectors after a repair
+    environment: uzstock-production
+    needs: deploy-production
+    if: github.ref == 'refs/heads/API' && github.event_name == 'push' && contains(github.event.head_commit.message, '[recover-collectors]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start the existing collector services on the tested release
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          key="$(mktemp)"
+          trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA'" <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          pwd -P
+          test "$(git rev-parse HEAD)" = "$1"
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$1"
+          for unit in uzstock-terminal-cbu.service uzstock-bank-history.service \
+            uzstock-event-evidence.service uzstock-financial-ingestion.service; do
+            systemctl show "$unit" -p FragmentPath -p ActiveState
+            systemctl start --no-block "$unit"
+          done
+          REMOTE
+
   backfill-governance:
     name: Collect company management disclosures
     environment: uzstock-production

@@ -403,19 +403,32 @@ def sync_month(year=None,month=None,*,with_sdmx=True,kinds=None):
 INFLATION_URL=BASE+'/en/monetary-policy/annual-inflation/indicators/'
 
 
-def parse_inflation(rows,source_url):
+def _inflation_period(value, source_url):
     from datetime import datetime
+    text=str(value).strip()
+    for pattern, format in ((r'\d{2}\.\d{2}\.\d{4}', '%d.%m.%Y'),
+                            (r'\d{2}\.\d{4}', '%m.%Y')):
+        if re.fullmatch(pattern,text):
+            try:
+                return datetime.strptime(text,format).strftime('%Y-%m')
+            except ValueError:
+                reject(source_url,'Invalid inflation period: '+text)
+    return None
+
+
+def parse_inflation(rows,source_url):
     header_at=next((i for i,row in enumerate(rows) if any('Headline inflation compared to the same month' in str(c) for c in row)),None)
     if header_at is None:reject(source_url,'Inflation headline header missing')
     header=rows[header_at]
     col=next(i for i,c in enumerate(header) if 'Headline inflation compared to the same month' in str(c))
     records=[]
     for row in rows[header_at+1:]:
-        if len(row)<=col or not re.fullmatch(r'\d{2}\.\d{2}\.\d{4}',row[0]):continue
-        observed=datetime.strptime(row[0],'%d.%m.%Y').date()
+        if len(row)<=col:continue
+        period=_inflation_period(row[0],source_url)
+        if period is None:continue
         value=number(row[col].replace(',','.'))
         if value is None or value<=-100:reject(source_url,'Invalid inflation observation')
-        records.append({'period':observed.strftime('%Y-%m'),'value':value,'source_url':source_url})
+        records.append({'period':period,'value':value,'source_url':source_url})
     if not records:reject(source_url,'No inflation observations')
     return records
 
@@ -449,7 +462,7 @@ def sync_inflation():
         if table is None:
             reject(url, 'Inflation table missing')
         rows = [[c.get_text(' ', strip=True) for c in row.select('th,td')] for row in table.select('tr')]
-        if not any(row and re.fullmatch(r'\d{2}\.\d{2}\.\d{4}', row[0]) for row in rows):
+        if not any(row and _inflation_period(row[0],url) for row in rows):
             break
         observed = parse_inflation(rows, url)
         new = [r for r in observed if r['period'] not in records]

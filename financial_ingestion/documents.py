@@ -9,7 +9,7 @@ from urllib.parse import urlparse, urljoin
 
 from . import source_policy, store, workbooks
 
-FETCH_VERSION = "bounded-openinfo-v1"
+FETCH_VERSION = "bounded-openinfo-v2"
 
 
 def artifact_root():
@@ -92,6 +92,14 @@ def register(c, *, org_id, ticker, url, category, metadata, processor, refresh_d
               (source_id, str(org_id), ticker, url, category, store.encoded(metadata), store.now(), store.now()))
     # A refreshed source gets a new job, while an unfinished attempt retains
     # its retry schedule. Failed jobs require an explicit operator retry.
+    if old:
+        failed = c.execute("SELECT id FROM ingest_jobs WHERE source_id=? AND stage='FETCH' "
+                           "AND state='FAILED' AND processor<>? AND error=?",
+                           (source_id, FETCH_VERSION, 'IFRS PDF exceeds download limit')).fetchall()
+        for job in failed:
+            if store.retry_failed(c, job['id'], actor='fetch policy upgrade',
+                                  reason='Official originals now use the bounded 100 MiB download ceiling'):
+                c.execute('UPDATE ingest_jobs SET processor=? WHERE id=?', (FETCH_VERSION, job['id']))
     if old and urlparse(url).path.lower().endswith('.xlsx'):
         failed = c.execute("SELECT id FROM ingest_jobs WHERE source_id=? AND stage='FETCH' "
                            "AND state='FAILED' AND error=?", (source_id, 'Source did not return a PDF')).fetchall()
