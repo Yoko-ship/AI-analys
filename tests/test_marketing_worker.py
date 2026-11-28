@@ -1,14 +1,52 @@
+import json
+
+import pytest
+
 from marketing import agents, store, worker
 from test_marketing_agents import Model, output
 from test_marketing_core import OWNER, NOW, isolated  # noqa: F401
 
 
-def test_worker_processes_a_saved_task_without_an_open_browser():
+@pytest.mark.parametrize("provider", ["injected", "codex_gateway"])
+def test_worker_processes_a_saved_task_without_an_open_browser(monkeypatch, provider):
     task = agents.start(OWNER, kind="dialogue", message="Explain the next baseline measurement")
-    result = worker.tick(model=Model([output("Measure confirmed report opens")]), now=NOW)
+    reply = output("Measure confirmed report opens")
+    model = Model([reply])
+    if provider == "codex_gateway":
+        from fastapi.testclient import TestClient
+        import codex_client
+        import codex_gateway
+
+        monkeypatch.delenv("MARKETING_MODEL_PROVIDER", raising=False)
+        monkeypatch.delenv("MARKETING_MODEL", raising=False)
+        monkeypatch.setenv("NEWS_AI_PROVIDER", "codex")
+        monkeypatch.setenv("NEWS_CODEX_GATEWAY_URL", "http://codex.internal:8080")
+        monkeypatch.setenv("CODEX_GATEWAY_SECRET", "test-gateway-secret")
+        monkeypatch.setattr(worker.model_runtime.shutil, "which", lambda _name: None)
+        monkeypatch.setattr(codex_gateway, "_SECRET", "test-gateway-secret")
+        monkeypatch.setattr(codex_gateway, "auth_status", lambda **kwargs: {"logged_in": True})
+        proxy = TestClient(codex_gateway.app)
+
+        def complete(_self, system, user, **options):
+            assert json.loads(user)["message"] == task["message"]
+            assert "cmo" in system
+            assert options["response_schema"]["required"] == ["result_json"]
+            return {"result_json": json.dumps(reply)}
+
+        def post(url, **options):
+            assert url == "http://codex.internal:8080/v1/json"
+            return proxy.post("/v1/json", json=options["json"], headers=options["headers"])
+
+        monkeypatch.setattr(codex_client.CodexClient, "complete_json", complete)
+        monkeypatch.setattr("requests.post", post)
+        model = None
+    result = worker.tick(model=model, now=NOW)
     assert result["model_work"]
     with store.connection() as c:
-        assert store.get(c, "task", task["id"])["status"] == "complete"
+        saved = store.get(c, "task", task["id"])
+        assert saved["status"] == "complete"
+        assert saved["outputs"][0]["result"]["summary"] == reply["summary"]
+        assert store.list_items(c, "delivery") == []
         assert store.get(c, "runtime", "worker")["last_completed_at"] == NOW.isoformat()
 
 
