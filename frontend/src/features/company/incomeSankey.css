@@ -19,7 +19,12 @@
 }
 .fc-sankey-header h3 { margin: 0 0 4px; font-size: 15px; }
 .fc-sankey-header span { color: var(--fc-muted); font-size: 12px; }
-.fc-sankey-periods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.fc-sankey-periods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.fc-sankey-periods .fc-segment { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+.fc-sankey-periods button { flex-shrink: 0; }
+.fc-sankey-source-issues p { margin: 0; }
+.fc-sankey-source-issues ul { margin: 8px 0 0; padding-inline-start: 20px; }
+.fc-sankey-source-issues a { color: inherit; text-decoration: underline; }
 .fc-sankey-periods button {
   min-height: 32px;
   padding: 5px 9px;

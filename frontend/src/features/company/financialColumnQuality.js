@@ -45,7 +45,7 @@ export function reconciliationIssues(cell) {
   const visit = part => {
     for (const issue of part.reconciliation_issues || []) {
       const key = JSON.stringify([issue.source_version, issue.period_end, issue.code, issue.difference]);
-      issues.set(key, issue);
+      issues.set(key, {...issue, source_url: issue.source_url || part.source_url});
     }
     for (const component of part.components || []) visit(component);
   };

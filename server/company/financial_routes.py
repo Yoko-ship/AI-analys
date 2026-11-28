@@ -27,11 +27,11 @@ async def api_company_shareholders(request: Request, ticker: str) -> Response:
 @router.get('/api/company/{ticker}/financials/columns')
 async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU',
                                 scope: str | None = None, freq: str = 'annual', view: str = 'full', statement: str = 'all',
-                                include_sources: bool = True, include_ratios: bool = True) -> Response:
+                                include_sources: bool = True, include_ratios: bool = True, from_year: int | None = None) -> Response:
     from financial_columns.service import load
     try:
         payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view, statement=statement,
-                                          include_sources=include_sources, include_ratios=include_ratios)
+                                          include_sources=include_sources, include_ratios=include_ratios, from_year=from_year)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _etag_json(request, payload, max_age=300)
@@ -49,7 +49,8 @@ async def api_financial_columns_export(ticker: str, extension: str, form: str = 
         raise HTTPException(status_code=404, detail='Unknown export format')
     try:
         payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view, statement=statement,
-                                          include_sources=layout != 'table', include_ratios=layout != 'table' or tab == 'ratios')
+                                          include_sources=layout != 'table', include_ratios=layout != 'table' or tab == 'ratios',
+                                          from_year=from_year if layout == 'table' else None)
         body, media_type = await asyncio.to_thread(export, payload, extension, layout=layout, lang=lang,
                                                    tab=tab, from_year=from_year, query=query)
     except ValueError as exc:

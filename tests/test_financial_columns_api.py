@@ -13,6 +13,41 @@ app = FastAPI()
 app.include_router(router)
 
 
+def test_uzmk_requested_annual_history_reaches_the_screen_and_export(monkeypatch, tmp_path):
+    from copy import deepcopy
+    from financial_columns import service
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    with get_catalog_conn() as conn:
+        conn.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES (?,?,?)',
+                     ('UZMK', 'O‘zmetkombinat AJ', '383'))
+    report = json.loads(Path('tests/fixtures/financial_columns/uzmk_income_history.json').read_text(encoding='utf8'))['annual']
+    rows = [{**cell, **{k: row[k] for k in ('metric_id', 'source_form', 'source_code', 'kind', 'unit')},
+             'raw_label': row['label'], 'standard': 'NSBU', 'scope': 'separate', 'issuer_id': '383'}
+            for row in report['rows'] for cell in row['cells'].values()]
+    monkeypatch.setattr(service.source_store, 'read', lambda *a, **kw: [])
+    monkeypatch.setattr(service.observations, 'nsbu', lambda docs: deepcopy(rows))
+    with TestClient(app) as client:
+        base = '/api/company/UZMK/financials/columns'
+        query = '?view=template&statement=income&include_ratios=false&from_year=2020'
+        result = client.get(base + query).json()
+        assert [c['label'] for c in result['columns']] == [
+            '2020', '2021', '2022', '2023', '2024', '2025', '2026 · 9M']
+        revenue = next(r for r in result['rows'] if r['metric_id'] == 'revenue')
+        assert revenue['cells']['2020']['value'] == '5299314748'
+        assert revenue['cells']['2023']['value'] == '8296538073'
+        assert revenue['cells']['2026-09-30']['quality'] == 'blocked'
+        assert revenue['cells']['2026-09-30']['value'] == '5430335106'
+        older = client.get(base + query.replace('from_year=2020', 'from_year=2015')).json()
+        assert older['columns'][0]['key'] == '2015'
+        # Compact overview consumers keep their default two-year window.
+        compact = client.get(base + '?view=template&include_ratios=false').json()
+        assert [c['label'] for c in compact['columns']] == ['2024', '2025', '2026 · 9M']
+        exported = client.get(base + '.csv' + query + '&layout=table&lang=en')
+        assert exported.status_code == 200
+        assert '2020' in exported.text and '2023' in exported.text
+        assert '5299314748' in exported.text
+
+
 def test_table_request_skips_unused_documents_and_ratios_without_losing_evidence(source, monkeypatch):
     from financial_columns import ratios, service
     full = service.load('IPTB', view='template', freq='quarter')
@@ -201,7 +236,9 @@ def test_real_leasing_form_exposes_calculated_debt_and_the_leasing_ratio(source)
     finance_cost = next(r for r in result['rows'] if r['id'] == 'F2:170')
     chart_cost = next(r for r in template['income_flow_rows'] if r['id'] == 'F2:170')
     assert chart_cost['cells']['2025'] == {
-        key: finance_cost['cells']['2025'][key] for key in ('value', 'quality')
+        key: value for key, value in finance_cost['cells']['2025'].items()
+        if key in ('value', 'quality', 'reason', 'role', 'basis', 'source_url', 'source_version',
+                   'period_start', 'period_end', 'reconciliation_issues')
     }
     assert all(r['id'] != 'F2:170' for r in template['rows'])
     assert result['template'] == 'leasing'

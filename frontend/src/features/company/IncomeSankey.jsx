@@ -1,5 +1,7 @@
 import React from 'react';
-import { incomeFlow } from './incomeFlow.js';
+import { incomeFlow, incomeReconciliationIssues } from './incomeFlow.js';
+import {qualityReason} from './financialColumnQuality.js';
+import {safeHref} from '../../lib/safeHref.js';
 import './incomeSankey.css';
 import {StatementChartRows} from './StatementChartRows.jsx';
 
@@ -153,20 +155,31 @@ function layout({totals, bridges}) {
 
 export function IncomeSankey({rows, details, statementRows = rows, matchesStatementRow, statementContext, renderStatementValue, columns, format, lang, t, showDifference = false}) {
   const heading = React.useId(), note = React.useId();
+  const periodPicker = React.useRef(null);
   const [selected, setSelected] = React.useState('');
   const [inspection, setInspection] = React.useState(null);
   const periods = React.useMemo(() => {
     const source = details?.length ? [...rows, ...details] : rows;
     return columns.filter(column => column.basis !== 'as_of').map(column => {
       const flow = incomeFlow(source, column.key);
-      if (!flow) return {...column, graph: null};
-      const bridges = showDifference ? flow.bridges : flow.bridges.map(lines =>
+      const issues = flow?.issues || incomeReconciliationIssues(source, column.key);
+      const blocked = source.find(row => row.cells?.[column.key]?.quality === 'blocked')?.cells[column.key];
+      if (!flow) return {...column, issues, blocked, graph: null};
+      const bridges = showDifference || issues.length ? flow.bridges : flow.bridges.map(lines =>
         lines.filter(line => line.id !== 'difference'));
-      return {...column, graph: layout({...flow, bridges})};
+      return {...column, issues, graph: layout({...flow, bridges})};
     });
   }, [rows, details, columns, showDifference]);
   const graphs = periods.map(period => period.graph).filter(Boolean);
   const active = periods.find(period => period.key === selected) || periods.findLast(period => period.graph) || periods.at(-1);
+  React.useEffect(() => {
+    const picker = periodPicker.current;
+    const button = picker?.querySelector('[aria-pressed="true"]');
+    if (!button) return;
+    const bounds = picker.getBoundingClientRect(), target = button.getBoundingClientRect();
+    if (target.right > bounds.right) picker.scrollLeft += target.right - bounds.right;
+    else if (target.left < bounds.left) picker.scrollLeft += target.left - bounds.left;
+  }, [active?.key]);
   const graph = active?.graph;
   const inspected = inspection?.period === active?.key ? inspection?.node : null;
   const title = t('Выручка и расходы', 'Tushum va xarajatlar', 'Revenue & expenses breakdown');
@@ -174,7 +187,12 @@ export function IncomeSankey({rows, details, statementRows = rows, matchesStatem
   const hasDifference = showsDifference(graph);
   const hasCharts = graphs.length > 0;
   const empty = <p role="status" className="fc-empty fc-sankey-empty">
-    {t('Для схемы не хватает отчётных данных за этот период.', 'Bu davr uchun hisobot ma’lumotlari yetarli emas.', 'Not enough reported figures for this period.')}
+    {active?.basis === 'quarter' && active.issues.length ?
+      t('Отдельный квартал нельзя рассчитать: в накопительном отчёте есть противоречия. Исходные суммы доступны в разделе «6M / 9M».',
+        'Alohida chorakni hisoblab bo‘lmaydi: jamlanma hisobotda zid summalar bor. Asl summalar «6M / 9M» bo‘limida.',
+        'This standalone quarter cannot be calculated because a cumulative filing contains conflicting figures. See the filed amounts under 6M / 9M.') :
+      active?.blocked?.reason ? qualityReason(active.blocked.reason, t) :
+        t('Для схемы не хватает отчётных данных за этот период.', 'Bu davr uchun hisobot ma’lumotlari yetarli emas.', 'Not enough reported figures for this period.')}
   </p>;
   const exactUnit = t('тыс. UZS', 'ming UZS', 'thousand UZS');
   const label = node => {
@@ -209,12 +227,22 @@ export function IncomeSankey({rows, details, statementRows = rows, matchesStatem
       <div><h3 id={heading}>{title}</h3>{hasCharts && <span className={!graph ? 'fc-sankey-hidden' : undefined}>{unit}</span>}</div>
       {active && <div className="fc-sankey-periods">
         <span>{periodLabel}</span>
-        <div className="fc-segment" role="group" aria-label={periodLabel}>
+        <div ref={periodPicker} className="fc-segment" role="group" aria-label={periodLabel}>
           {periods.map(period => <button key={period.key} type="button" aria-pressed={period.key === active.key}
             onClick={() => { clear(); setSelected(period.key); }}>{period.label}</button>)}
         </div>
       </div>}
     </header>
+    {active?.issues.length > 0 && <div role="status" className="fc-notice fc-sankey-source-issues">
+      <p>{t('В отчёте есть противоречивые суммы.', 'Hisobotda bir-biriga zid summalar bor.', 'The filing contains conflicting figures.')}
+        {graph && ' ' + t('Схема показывает суммы из отчёта. Несверенная разница не является дополнительным доходом или расходом.',
+          'Sxemada hisobotdagi summalar ko‘rsatilgan. Solishtirilmagan tafovut qo‘shimcha daromad yoki xarajat emas.',
+          'The diagram shows amounts as filed. An unreconciled difference is not additional income or expense.')}</p>
+      <ul>{active.issues.map(issue => <li key={`${issue.source_version}:${issue.period_end}:${issue.code}`}>
+        {label({id: issue.metric_id})} · {issue.period_end}: {t('расхождение', 'tafovut', 'difference')} {format(Math.abs(Number(issue.difference)))} {exactUnit}
+        {safeHref(issue.source_url) && <> · <a href={safeHref(issue.source_url)} target="_blank" rel="noopener noreferrer">{t('Отчёт OpenInfo', 'OpenInfo hisoboti', 'OpenInfo filing')}</a></>}
+      </li>)}</ul>
+    </div>}
     {hasCharts ? <>
       <p className={`fc-sankey-scroll-hint${graph ? '' : ' fc-sankey-hidden'}`}>{t('Прокрутите схему вправо', 'Sxemani o‘ngga suring', 'Scroll right to see the full diagram')}</p>
       <div className="fc-sankey-plot" style={{
@@ -250,7 +278,7 @@ export function IncomeSankey({rows, details, statementRows = rows, matchesStatem
           <span>{active.label}</span>
           <strong>{label(inspected)}</strong>
           <strong>{format(inspected.value)} {exactUnit}</strong>
-          {marginLabel && revenue > 0 && (inspected.id !== 'gross_profit' || grossMarginApplicable || inspected.value !== revenue)
+          {!active.issues.length && marginLabel && revenue > 0 && (inspected.id !== 'gross_profit' || grossMarginApplicable || inspected.value !== revenue)
             && <span>{marginLabel} · {compact.format(inspected.value / revenue * 100)}%</span>}
         </div>}
       </div>

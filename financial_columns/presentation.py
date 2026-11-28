@@ -60,7 +60,9 @@ def income_flow_details(rows, selected):
     visible = {row['id'] for row in selected}
     return [
         {**{key: row[key] for key in ('id', 'source_form', 'metric_id', 'kind', 'unit', 'label')},
-         'cells': {period: {'value': cell['value'], 'quality': cell['quality']}
+         'cells': {period: {key: value for key, value in cell.items()
+                            if key in {'value', 'quality', 'reason', 'role', 'basis', 'source_url', 'source_version',
+                                       'period_start', 'period_end', 'reconciliation_issues'}}
                    for period, cell in row['cells'].items()}}
         for row in rows
         if row['source_form'] in {'F2', 'INSURANCE_PL'} and row['metric_id'] in _INCOME_FLOW_DETAILS

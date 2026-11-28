@@ -732,7 +732,7 @@ async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 
     if (path === `/api/catalog/index/${ticker}`) return json({ ok: true, company_name: ticker === 'HMKB' ? 'Hamkorbank' : 'Ipoteka bank', availability: { NSBU: { annual: [{ year: 2025 }], quarter: [{ year: 2026, quarter: 3 }] } } });
     if (path.endsWith('/financials/columns')) {
       if (fail) return route.fulfill({ status: 503, json: { detail: 'Source temporarily unavailable' } });
-      const data = reports || (ticker === 'HMKB' ? hmkbFixture : (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual']);
+      const data = (typeof reports === 'function' ? reports(url) : reports) || (ticker === 'HMKB' ? hmkbFixture : (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual']);
       if (url.searchParams.get('form') === 'MSFO') return json({ ...data, presentation:'investor',statements:{pl:[],bs:[],cf:[],equity:[]},standard: 'MSFO', rows: [], overview_rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
       return route.fulfill({ headers: {'Cache-Control':'public, max-age=300'}, json: { ...data,
         source_forms: url.searchParams.get('include_sources') === 'false' ? [] : [{ period_end: '2026-09-30', documents: [original] }],
@@ -1166,6 +1166,60 @@ test('Form 2 detail rows verify reporting intervals, currency and numeric amount
   await expect(amount('same-end-ytd')).toContainText('—');
   await expect(amount('reported-quarter')).toHaveText('40');
   await expect(amount('derived-quarter')).toHaveText('40');
+});
+
+for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`UZMK shows filed income discrepancies and accessible history at ${width}px`, async ({page}, testInfo) => {
+  const filings = JSON.parse(readFileSync('tests/fixtures/financial_columns/uzmk_income_history.json', 'utf8'));
+  const requests = [];
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({width, height: 1000});
+  await setup(page, {ticker: 'UZMK', theme, reports: url => {
+    requests.push(url);
+    const data = filings[url.searchParams.get('freq') || 'annual'];
+    return {...data, overview_rows: data.rows};
+  }});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
+  const period = breakdown.getByRole('group', {name: 'Reporting period'});
+  const diagram = breakdown.getByRole('img');
+  await expect(period.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(diagram).toContainText('Gross profit');
+  await expect(diagram).toContainText('942.39');
+  await expect(diagram).toContainText('Unreconciled difference');
+  const warning = breakdown.getByRole('status').filter({hasText: 'The filing contains conflicting figures'});
+  await expect(warning).toContainText('640,620,667');
+  await expect(warning.getByRole('link').first()).toHaveAttribute('href', /report_id=19077/);
+  const gross = diagram.locator('.fc-sankey-node').filter({has: page.getByText('Gross profit', {exact: true})});
+  await gross.focus();
+  await expect(breakdown.getByRole('tooltip')).not.toContainText('%');
+  await page.keyboard.press('Escape');
+  await period.getByRole('button', {name: '2025', exact: true}).click();
+  await expect(diagram).toContainText('284.06');
+  await expect(warning).toContainText('17,962,052');
+  await expect(warning.getByRole('link').first()).toHaveAttribute('href', /report_id=6187/);
+  await breakdown.screenshot({path: testInfo.outputPath('uzmk-2025-source-discrepancy.png')});
+  await period.getByRole('button', {name: '2020', exact: true}).click();
+  await expect(diagram).toContainText('5,299.31');
+  await expect(warning).toHaveCount(0);
+  expect(requests[0].searchParams.get('from_year')).toBe('2020');
+  await terminal.getByRole('button', {name: 'Quarters', exact: true}).click();
+  await period.scrollIntoViewIfNeeded();
+  await expect(period.getByRole('button', {name: '2026 Q2', exact: true})).toBeInViewport();
+  await period.getByRole('button', {name: '2026 Q2', exact: true}).click();
+  await expect(diagram).toContainText('1,849.86');
+  await period.getByRole('button', {name: '2026 Q3', exact: true}).click();
+  await expect(diagram).toHaveCount(0);
+  await expect(breakdown).toContainText('This standalone quarter cannot be calculated');
+  await expect(warning).toContainText('640,620,667');
+  await expect(breakdown).not.toContainText('Not enough reported figures');
+  await terminal.getByRole('button', {name: '6M / 9M', exact: true}).click();
+  await period.getByRole('button', {name: '2026-09-30', exact: true}).click();
+  await expect(diagram).toContainText('942.39');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await breakdown.screenshot({path: testInfo.outputPath('uzmk-2026-9m-source-discrepancy.png')});
+  expect(errors).toEqual([]);
 });
 
 test('ABKZ overview shows only the income breakdown in chart mode', async ({page}, testInfo) => {

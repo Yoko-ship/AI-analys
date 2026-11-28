@@ -180,7 +180,7 @@ def filing_ebit(company, report):
 
 
 def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', statement='all',
-         include_sources=True, include_ratios=True):
+         include_sources=True, include_ratios=True, from_year=None):
     ticker, form = ticker.upper().strip(), form.upper()
     form = 'MSFO' if form == 'IFRS' else form
     if form not in {'NSBU', 'MSFO'} or scope not in {None, 'separate', 'consolidated', 'unknown'}:
@@ -272,8 +272,15 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         source_rows = enrich(source_rows)
     filed_end = _latest_separate_end(ticker) if form == 'NSBU' and scope == 'separate' and include_ratios and view == 'template' else None
     table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'}, filed_end=filed_end,
-                         annual_history=view == 'investor', interim_ttm=view == 'investor',
+                         annual_history=from_year is not None or view == 'investor', interim_ttm=view == 'investor',
                          recent_ttm=include_ratios and view == 'template' and form == 'NSBU' and template not in capital_returns.FINANCIAL)
+    if from_year is not None:
+        # Retain earlier observations for quarter/TTM arithmetic; restrict only
+        # the displayed columns after their values have been calculated.
+        table['columns'] = [c for c in table['columns'] if int(c['end'][:4]) >= from_year]
+        keys = {c['key'] for c in table['columns']}
+        for row in table['rows']:
+            row['cells'] = {key: cell for key, cell in row['cells'].items() if key in keys}
     ratio_rows = []
     for column in table['columns'] if include_ratios else []:
         for ratio in ratios.calculate(source_rows, ticker=ticker, template=template,

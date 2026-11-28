@@ -120,7 +120,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   const [balanceSelection, setBalanceSelection] = React.useState(null);
   React.useEffect(() => { setPassport(null); }, [statement]);
   const params = new URLSearchParams({ form: standard, scope, freq, view: 'template',
-    include_sources: 'false', include_ratios: String(view === 'ratios') });
+    include_sources: 'false', include_ratios: String(view === 'ratios'), from_year: String(fromYear) });
   const exportParams = new URLSearchParams({ form: standard, scope, freq, view: view === 'summary' ? 'overview' : 'template',
     statement: ['summary', 'original'].includes(view) ? statement : 'all',
     layout: 'table', lang, tab: view, from_year: String(fromYear), query: showBalancePie ? '' : query, v: exportVersion });

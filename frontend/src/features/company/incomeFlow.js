@@ -1,3 +1,32 @@
+import {reconciliationIssues} from './financialColumnQuality.js';
+
+const SOURCE_ARITHMETIC = new Set([
+  'SOURCE_GROSS_PROFIT_MISMATCH', 'SOURCE_OPERATING_PROFIT_MISMATCH', 'SOURCE_NET_PROFIT_MISMATCH',
+]);
+
+export function incomeReconciliationIssues(rows, period) {
+  const issues = new Map();
+  for (const row of rows) {
+    if (row.source_form !== 'F2' || !row.cells?.[period]) continue;
+    for (const issue of reconciliationIssues(row.cells[period])) {
+      if (SOURCE_ARITHMETIC.has(issue.code)) {
+        issues.set(JSON.stringify([issue.source_version, issue.period_end, issue.code, issue.difference]), issue);
+      }
+    }
+  }
+  return [...issues.values()];
+}
+
+function reportedWithDiscrepancy(row, cell) {
+  // A source diagram can disclose a filed amount that fails arithmetic checks.
+  // Never revive a withheld, untraceable or failed calculated amount.
+  return row.source_form === 'F2' && cell?.quality === 'blocked' && SOURCE_ARITHMETIC.has(cell.reason) &&
+    cell.source_url && ['PRIMARY', 'COMPARATIVE'].includes(cell.role) && !['quarter', 'ttm'].includes(cell.basis) &&
+    cell.reconciliation_issues?.some(issue => issue.code === cell.reason &&
+      issue.source_version === cell.source_version && issue.period_end === cell.period_end);
+}
+
+
 const OPERATING_COSTS = ['operating_expenses', 'selling_expense', 'admin_expense', 'other_operating_expense'];
 const FINANCE_COSTS = ['finance_cost', 'interest_expense', 'lease_expense', 'fx_expense', 'other_finance_cost'];
 const TAX = ['income_tax', 'other_profit_payments', 'profit_adjustment', 'tax_adjustment'];
@@ -74,7 +103,8 @@ export function incomeFlow(rows, period) {
     for (const row of rows) {
       const cell = row.cells?.[period];
       if (row.source_form !== form || row.kind !== 'flow' || row.unit !== 'UZS_thousand' ||
-          cell?.value == null || cell.value === '' || !['valid', 'warn'].includes(cell.quality)) continue;
+          cell?.value == null || cell.value === '' ||
+          (!['valid', 'warn'].includes(cell.quality) && !reportedWithDiscrepancy(row, cell))) continue;
       // Bank forms report expense magnitudes in a single column. F2 uses signed
       // income-minus-expense pairs. Inversion also preserves bank recoveries.
       const value = Number(cell.value) * (form === 'BANK_PL' && BANK_DEDUCTIONS.has(row.metric_id) ? -1 : 1);
@@ -103,7 +133,9 @@ export function incomeFlow(rows, period) {
       lines = [];
     }
     const hasBreakdown = totals.length > 2 || bridges.some(entries => entries.some(line => line.id !== 'difference'));
-    if (hasBreakdown && (totals.some(total => total.value) || bridges.some(entries => entries.length))) return {totals, bridges};
+    if (hasBreakdown && (totals.some(total => total.value) || bridges.some(entries => entries.length))) {
+      return {totals, bridges, issues: incomeReconciliationIssues(rows, period)};
+    }
   }
   return null;
 }
