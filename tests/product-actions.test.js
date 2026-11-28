@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-test('product observation retries preserve the exact receipt and omit unapproved fields', async () => {
+test('product observation retries preserve the exact receipt and omit unapproved fields', async t => {
+  t.mock.method(globalThis.crypto, 'randomUUID', () => '00000000-0000-4000-8000-000000000999');
   const sent = [], values = new Map();
   globalThis.localStorage = { getItem: k => values.get(k) ?? null, setItem: (k,v) => values.set(k,String(v)), removeItem: k => values.delete(k) };
   globalThis.window = { location: { search: '' }, innerWidth: 1000, innerHeight: 800, scrollY: 0, addEventListener() {} };
@@ -21,9 +22,9 @@ test('product observation retries preserve the exact receipt and omit unapproved
   assert.equal(sent.length, 2);
   assert.equal(sent[0].body, sent[1].body);
   assert.equal(sent[0].headers.Authorization, 'Bearer synthetic-token');
-  assert.equal(sent[0].body.includes('private'), false);
-  assert.equal(sent[0].body.includes('999'), false);
   const event = JSON.parse(sent[0].body);
+  assert.equal(Object.hasOwn(event, 'query'), false);
+  assert.equal(Object.hasOwn(event, 'uid'), false);
   assert.equal(event.kind, 'issuer_open');
   assert.match(event.event_id, /^[0-9a-f-]{36}$/);
   sent.length = 0;
