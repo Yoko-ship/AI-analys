@@ -26,6 +26,8 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
 
   const [marketLoading, setMarketLoading] = useState(false);
   const marketRequest = useRef(0);
+  const marketPending = useRef(false);
+  const marketCheckedAt = useRef(0);
   const [marketLoadVersion, setMarketLoadVersion] = useState(0);
 
   const [marketMessage, setMarketMessage] = useState("");
@@ -65,6 +67,21 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     loadMarketStocks(quoteType).catch((error) => {
       addToast(error.message, "error");
     });
+    if (activeView !== "market") return;
+    // Collector writes do not push into an open browser. Re-read the stored
+    // board while visible and on return, without forcing a server refresh.
+    const check = () => {
+      if (document.visibilityState !== "visible" || Date.now() - marketCheckedAt.current < 15_000) return;
+      loadMarketStocks(quoteType, { background: true }).catch(() => {});
+    };
+    const timer = window.setInterval(check, 60_000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, quoteType, language]);
 
@@ -91,16 +108,21 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     setCompanies(data.companies || []);
   };
 
-  const loadMarketStocks = async (typeOverride = null, { refresh = false } = {}) => {
+  const loadMarketStocks = async (typeOverride = null, { refresh = false, background = false } = {}) => {
+    if (background && marketPending.current) return;
+    marketPending.current = true;
+    marketCheckedAt.current = Date.now();
     const requestId = ++marketRequest.current;
-    if (!refresh) setMarketLoadVersion(requestId);
-    setMarketLoading(true);
-    setMarketError(false);
+    if (!refresh && !background) setMarketLoadVersion(requestId);
+    if (!background) {
+      setMarketLoading(true);
+      setMarketError(false);
+      setMarketMessage(mt(language, "loading"));
+    }
     const needsStats = ["issuers", "market", "heatmap", "company", "chart", "main"].includes(activeView);
     // Cold navigation starts independent reads together. A forced refresh waits
     // for new quotes before fetching their supplements, preserving freshness.
     const statsRequest = needsStats && !refresh ? loadTradeStats() : null;
-    setMarketMessage(mt(language, "loading"));
     try {
       const params = new URLSearchParams();
       // "ordinary"/"preferred" are share-type subsets the server can't filter (it
@@ -117,7 +139,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       // Merge, don't replace: `refreshed_at`/`trade_date` come from the
       // trade-stats call, which runs on its own and must survive a reload here.
       setMarketMeta((prev) => ({ ...prev, updated_at: data.updated_at || null, count: data.count || 0, type: data.type || requestedType }));
-      if (refresh) setMarketLoadVersion(requestId);
+      if (refresh || background) setMarketLoadVersion(requestId);
       if (needsStats) void (statsRequest || loadTradeStats()).then(data => {
         if (!data || requestId !== marketRequest.current) return;
         if (data.stats) setMarketTradeStats(data.stats);
@@ -125,14 +147,20 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
         setMarketMeta(prev => ({...prev, refreshed_at:data.quotes_refreshed_at || null,
           trade_date:data.trade_date || null, validation:data.validation || null}));
       });
+      setMarketError(false);
       setMarketMessage(mt(language, "ready"));
     } catch (error) {
       if (requestId !== marketRequest.current) return;
-      setMarketError(true);
-      setMarketMessage(error.message);
+      if (!background) {
+        setMarketError(true);
+        setMarketMessage(error.message);
+      }
       throw error;
     } finally {
-      if (requestId === marketRequest.current) setMarketLoading(false);
+      if (requestId === marketRequest.current) {
+        marketPending.current = false;
+        setMarketLoading(false);
+      }
     }
   };
 
