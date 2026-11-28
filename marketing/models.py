@@ -120,11 +120,13 @@ class Account(Input):
     paused: bool = False
     personal_profile: bool = False
     instagram_link_ready: bool = False
+    automatic_news: bool = False
 
     @model_validator(mode="after")
     def permission_scope(self):
         if self.mode != "draft":
-            if not self.external_id or not self.valid_until or not self.rubrics or not self.formats:
+            ongoing_news = self.platform == 'telegram' and self.automatic_news
+            if not self.external_id or (not self.valid_until and not ongoing_news) or not self.rubrics or not self.formats:
                 raise ValueError("Release permission requires an account, expiry, rubrics and formats")
             if self.platform == "linkedin" and not self.personal_profile:
                 raise ValueError("LinkedIn requires a separately authorized personal profile")

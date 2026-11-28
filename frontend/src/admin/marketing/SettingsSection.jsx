@@ -15,7 +15,8 @@ function AccountForm({ platform, account, rubrics, request, busy }) {
       valid_until: fields.get('valid_until') ? `${fields.get('valid_until')}T23:59:00+05:00` : null,
       window_start: fields.get('window_start'), window_end: fields.get('window_end'),
       min_interval_minutes: Number(fields.get('min_interval_minutes')), correction_policy: 'manual',
-      personal_profile: fields.has('personal_profile'), paused: account?.paused || false };
+      personal_profile: fields.has('personal_profile'), paused: account?.paused || false,
+      automatic_news: account?.automatic_news || false };
     await request(`/accounts/${account?.id || platform.id}`, { method: 'PUT', body: { data: value, expected_version: account?.version || 0 }, message: 'Правила аккаунта сохранены. Подключение проверяется отдельно.' });
   }
   return <form className="mkt-form" onSubmit={save}>
@@ -30,7 +31,7 @@ function AccountForm({ platform, account, rubrics, request, busy }) {
     {platform.id === 'instagram' && <p>Видео публикуются как Reels в выбранном Instagram с отметкой об использовании ИИ. Дополнительное размещение в ленте профиля отключено. Видимость и возможность ремиксов зависят от настроек самого Instagram.</p>}
     {platform.id === 'instagram' && <p>Stories доступны только для бизнес-аккаунта: отправляется изображение с текстом и отметкой ИИ. Отдельная подпись и ссылка-стикер не добавляются. После отправки проверяем наличие изображения среди активных Stories.</p>}
     <fieldset><legend>Языки</legend><div className="mkt-checks">{[['ru', 'Русский'], ['uz', 'O‘zbekcha'], ['en', 'English']].map(([id, label]) => <label key={id}><input type="checkbox" name="languages" value={id} defaultChecked={(account?.languages || ['ru']).includes(id)} />{label}</label>)}</div></fieldset>
-    <div className="mkt-fields"><Field label="Разрешение действует до" name="valid_until" type="date" defaultValue={account?.valid_until?.slice(0, 10) || ''} required={mode !== 'draft'} />
+    <div className="mkt-fields"><Field label="Разрешение действует до" name="valid_until" type="date" defaultValue={account?.valid_until?.slice(0, 10) || ''} required={mode !== 'draft' && !account?.automatic_news} />
       <Field label="Интервал между публикациями · минуты" name="min_interval_minutes" type="number" min="1" max="10080" defaultValue={account?.min_interval_minutes || 60} required />
       <Field label="Начало окна · Ташкент" name="window_start" type="time" defaultValue={account?.window_start?.slice(0, 5) || '09:00'} required />
       <Field label="Конец окна · Ташкент" name="window_end" type="time" defaultValue={account?.window_end?.slice(0, 5) || '21:00'} required /></div>

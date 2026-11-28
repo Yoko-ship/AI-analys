@@ -1054,7 +1054,8 @@ for (const width of [1440, 390]) test(`financial reconciliation preserves eviden
 test('owner saves and approves a goal, reloads history, and pauses publications', async ({ page }, info) => {
   await workspace(page, info);
   await expect(page.getByRole('heading', { name: 'Обзор команды' })).toBeVisible();
-  await expect(page.getByText('Цель ещё не утверждена')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Telegram', exact: true })).toBeVisible();
+  await expect(page.getByText('Цель ещё не утверждена')).toHaveCount(0);
   await page.getByRole('button', { name: 'Цель и стратегия', exact: true }).click();
   await page.getByLabel('Бизнес-цель', { exact: true }).fill('Переходы к квартальным разборам');
   await page.getByLabel('Метрика', { exact: true }).fill('report_open');

@@ -1,0 +1,36 @@
+import { test, expect } from '@playwright/test';
+import { workspace } from './helpers/marketing-workspace.js';
+
+for (const width of [1440, 390]) test(`Telegram connects without campaign configuration at ${width}px`, async ({ page }, info) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width, height: 950 });
+  const api = await workspace(page, info);
+  api({ method: 'TELEGRAM_CONFIGURE' });
+  await page.reload();
+  const panel = page.getByRole('region', { name: 'Telegram', exact: true });
+  await panel.getByLabel('Канал Telegram', { exact: true }).fill('-100456');
+  await panel.getByRole('button', { name: 'Подключить канал', exact: true }).click();
+  await expect(panel.getByRole('alert')).toContainText('Проверьте ID канала');
+  await panel.getByLabel('Канал Telegram', { exact: true }).fill('-100123');
+  await panel.getByRole('button', { name: 'Подключить канал', exact: true }).click();
+  await expect(panel).toContainText('Канал подключён');
+  await expect(panel).toContainText('автоматически');
+  await expect(panel.getByLabel('Ключ события')).toHaveCount(0);
+  await page.reload();
+  await expect(panel).toContainText('Канал подключён');
+  const result = api({ method: 'GET', path: '/api/admin/ai-marketing/workspace' });
+  expect(result.status).toBe(200);
+  expect(result.body.accounts[0]).toMatchObject({ automatic_news: true, connection_status: 'connected', valid_until: null });
+  expect(result.body.goal).toBeNull();
+  expect(result.body.strategies).toEqual([]);
+  expect(result.body.editorial_rules).toEqual([]);
+  await panel.getByRole('button', { name: 'Приостановить Telegram', exact: true }).click();
+  await expect(panel).toContainText('На паузе');
+  await page.reload();
+  await expect(panel).toContainText('На паузе');
+  await panel.getByRole('button', { name: 'Возобновить Telegram', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Приостановить Telegram', exact: true })).toBeVisible();
+  await panel.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath(`telegram-connected-${width}.png`) });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

@@ -286,6 +286,9 @@ def guard(c, task, now, *, released_candidate=None):
     binding = task.get("editorial")
     if not binding:
         return
+    if binding.get('kind') == 'telegram':
+        from . import telegram_news
+        return telegram_news.guard(c, task, now)
     rule = s.get(c, "editorial_rule", binding["rule_id"], required=False)
     if not rule or not rule["enabled"] or rule["version"] != binding["rule_version"]:
         raise MarketingError("EDITORIAL_RULE_CHANGED", "The automatic editorial rule changed or was disabled; this assignment is stopped.")

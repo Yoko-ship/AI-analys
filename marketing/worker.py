@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 
-from . import agents, automation, channels, delivery, execution, incidents, media, meta_confirmation, model_runtime, production, reports, scheduling, source_adapters, sources, store as s, website
+from . import agents, automation, channels, delivery, execution, incidents, media, meta_confirmation, model_runtime, news_review, production, reports, scheduling, source_adapters, sources, store as s, telegram_news, website
 from .errors import MarketingError
 from .permissions import timestamp
 
@@ -22,8 +22,11 @@ def tick(*, model=None, transport=None, fetch=None, now=None):
     delivery.recover_inflight(now)
     media.recover(now)
     confirmation_work = meta_confirmation.run_one(now)
+    telegram_news.ensure_source(now)
     source_work = sources.collect_one(fetch if fetch is not None else source_adapters.fetch, now)
-    editorial_work = automation.run_one(now)
+    model = model if model is not None else model_runtime.get_model()
+    review_work = news_review.run_one(model, now)
+    editorial_work = automation.run_one(now) or telegram_news.run_one(now)
     with s.connection() as c:
         ready = s.list_items(c, "candidate", status="ready")
         pause = s.get(c, "settings", "pause", required=False) or {}
@@ -37,7 +40,7 @@ def tick(*, model=None, transport=None, fetch=None, now=None):
     dispatched = delivery.run_one(transport if transport is not None else channels.Transport(now), now)
     incident_work = incidents.scan(now)
     media_work = media.run_one(now)
-    model_work = agents.run_one(model if model is not None else model_runtime.get_model(), now)
+    model_work = agents.run_one(model, now) or review_work
     website_work = website.run_one(supplied_now)
     report_work = not pause.get("processing") and reports.freeze_closed_week(supplied_now or datetime.now(timezone.utc))
     completed_at = supplied_now or datetime.now(timezone.utc)

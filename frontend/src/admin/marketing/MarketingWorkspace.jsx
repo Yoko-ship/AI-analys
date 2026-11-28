@@ -11,6 +11,7 @@ import { ExperimentsSection } from './ExperimentsSection.jsx';
 import { connectionStatus } from './ChannelConnection.jsx';
 import { useSocialCallback } from './useSocialCallback.js';
 import { RecoveryPanel } from './RecoveryPanel.jsx';
+import { TelegramNews } from './TelegramNews.jsx';
 import './marketing.css';
 
 const tabs = [['overview', 'Обзор команды'], ['goal', 'Цель и стратегия'], ['sources', 'Источники'], ['content', 'Контент и очередь'], ['workflow', 'Рабочий цикл'], ['experiments', 'Эксперименты'], ['reports', 'Отчёты'], ['settings', 'Настройки']];
@@ -64,10 +65,11 @@ export default function MarketingWorkspace({ apiFetch }) {
     <div role="status" className={notice ? 'mkt-notice' : undefined}>{notice}</div>
     <RecoveryPanel {...props} />
     {tab === 'overview' && <>
-      <div className="mkt-goal"><div><span className="mkt-kicker">ДЕЙСТВУЮЩАЯ ЦЕЛЬ</span><h3>{goal?.title || 'Цель ещё не утверждена'}</h3><p>{goal ? `${number(goal.target)} ${goal.unit} · до ${date(goal.deadline)} · бюджет ${number(goal.budget)} ${goal.currency}` : 'Задайте измеримый результат, срок и ресурсы.'}</p></div><button onClick={() => navigate('goal')}>Открыть цель</button></div>
+      <TelegramNews {...props} navigate={navigate} />
+      {goal && <div className="mkt-goal"><div><span className="mkt-kicker">ДЕЙСТВУЮЩАЯ ЦЕЛЬ</span><h3>{goal.title}</h3><p>{number(goal.target)} {goal.unit} · до {date(goal.deadline)} · бюджет {number(goal.budget)} {goal.currency}</p></div><button onClick={() => navigate('goal')}>Открыть цель</button></div>}
       <div className="mkt-kpis">{counts.map(([label, value]) => <div key={label}><span>{label}</span><strong>{number(value)}</strong></div>)}</div>
       <div className="mkt-columns"><Panel title="Команда и задачи"><div className="mkt-roles">{data.roles.map(role => <button className="mkt-role" key={role.id} onClick={() => setDialog({ title: role.name, body: <><p>{role.purpose}</p><p>Передаёт результат: {role.recipient}</p><h4>Задачи</h4>{data.tasks.filter(t => t.role === role.id).map(t => <p key={t.id}>{t.title} · <Status value={t.status} /></p>)}{!data.tasks.some(t => t.role === role.id) && <p className="mkt-muted">Активных задач пока нет.</p>}</> })}><span className="mkt-role-mark" aria-hidden="true">{role.name.slice(0, 2)}</span><span><strong>{role.name}</strong><small>{role.purpose}</small></span></button>)}</div></Panel>
-        <div className="mkt-stack"><Panel title="Нужен ваш следующий шаг"><p>{goal ? 'Проверьте доступность источников и настройте границы работы каналов.' : 'Зафиксируйте цель. Неизмеренная исходная база останется пометкой «замерить».'}</p><button onClick={() => navigate(goal ? 'settings' : 'goal')}>{goal ? 'Настроить каналы' : 'Заполнить цель'}</button></Panel>
+        <div className="mkt-stack"><Panel title="Расширенная работа"><p>Цели, стратегии и другие площадки настраиваются отдельно. Для новостей в Telegram они не нужны.</p><button onClick={() => navigate('goal')}>Открыть планирование</button></Panel>
           <Panel title="Площадки">{data.platforms.map(platform => <div className="mkt-item mkt-row mkt-between" key={platform.id}><span>{platform.name}</span><Status value={connectionStatus(data, data.accounts.find(a => a.platform === platform.id))} /></div>)}</Panel>
           <Panel title="Результат бизнеса"><p className="mkt-muted">{goal?.baseline == null ? 'Нет измеренной базы для сравнения с целью.' : `Исходная база: ${number(goal.baseline)} ${goal.unit}.`}</p><p>Работа команды и подтверждённые публикации учитываются отдельно от посещений, регистраций и продаж.</p></Panel></div></div>
     </>}

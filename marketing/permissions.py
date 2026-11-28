@@ -31,7 +31,8 @@ def can_release(account, item, now, *, transport=False):
         return False, "Account is paused"
     if item["publication_type"] != "organic":
         return False, "Paid campaigns require their own owner decision"
-    if not account["valid_until"] or timestamp(account["valid_until"]) <= now:
+    ongoing_news = account['platform'] == 'telegram' and account.get('automatic_news') and item['rubric'] == 'news'
+    if (not account["valid_until"] and not ongoing_news) or (account['valid_until'] and timestamp(account["valid_until"]) <= now):
         return False, "Account permission expired"
     if item["rubric"] not in account["rubrics"] or item["format"] not in account["formats"] or item["language"] not in account["languages"]:
         return False, "Content is outside the account's approved scope"

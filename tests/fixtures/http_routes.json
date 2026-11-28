@@ -7060,5 +7060,49 @@
     ],
     "name": "fetch_media__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/admin/ai-marketing/telegram/connect",
+    "methods": [
+      "POST"
+    ],
+    "name": "connect_telegram",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/telegram/{account_id}/pause",
+    "methods": [
+      "POST"
+    ],
+    "name": "pause_telegram",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/telegram/connect",
+    "methods": [
+      "POST"
+    ],
+    "name": "connect_telegram__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/telegram/{account_id}/pause",
+    "methods": [
+      "POST"
+    ],
+    "name": "pause_telegram__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
   }
 ]

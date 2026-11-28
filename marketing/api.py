@@ -149,6 +149,7 @@ class RenderRequest(Version):
 
 @router.get("/workspace")
 def workspace(request: Request):
+    from . import telegram_news
     with s.connection() as c:
         data = {plural: s.list_items(c, kind) for plural, kind in (
             ("accounts", "account"), ("strategies", "strategy"), ("evidence", "evidence"),
@@ -168,6 +169,7 @@ def workspace(request: Request):
         data["visibility_reviews"] = visibility.pending(c)
         data["reconciliation_read"] = s.get(c, "settings", "telegram_updates", required=False)
         data['website'] = website.status(c)
+        data['telegram_news'] = telegram_news.status(c, datetime.now(timezone.utc))
         data.update(goal=s.get(c, "goal", "primary", required=False), active_goal=goals.active_goal(c),
                     pause=s.get(c, "settings", "pause", required=False) or {"publications": False, "processing": False},
                     roles=catalog.ROLES, rubrics=catalog.RUBRICS, platforms=catalog.PLATFORMS,
@@ -259,6 +261,33 @@ def request_paid_action(request: Request, experiment_id: str, body: Version):
 @router.post("/accounts/{account_id}/probe")
 def probe_account(request: Request, account_id: str, body: Version):
     return reply(request, {"item": channels.probe(actor(request), account_id, body.expected_version, datetime.now(timezone.utc))})
+
+
+class TelegramConnect(Version):
+    channel: str = Field(pattern=r'^-100[0-9]+$')
+    account_id: str | None = None
+
+
+@router.post('/telegram/connect')
+def connect_telegram(request: Request, body: TelegramConnect):
+    from . import telegram_news
+    return reply(request, {'item': telegram_news.connect(actor(request), body.channel, body.expected_version,
+                  datetime.now(timezone.utc), body.account_id)})
+
+
+class TelegramPause(Version):
+    paused: bool
+
+
+@router.post('/telegram/{account_id}/pause')
+def pause_telegram(request: Request, account_id: str, body: TelegramPause):
+    with s.connection() as c:
+        account = s.get(c, 'account', account_id)
+    if account['platform'] != 'telegram':
+        raise MarketingError('ACCOUNT_PLATFORM', 'Choose a Telegram channel.', 422)
+    value = {key: account[key] for key in Account.model_fields if key in account}
+    return reply(request, {'item': permissions.save_account(actor(request), account_id,
+                  {**value, 'paused': body.paused}, body.expected_version)})
 
 
 @router.post("/accounts/{account_id}/linkedin/start")
