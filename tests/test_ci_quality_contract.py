@@ -25,6 +25,7 @@ def test_format_recovery_runs_only_on_requested_verified_release():
     assert "refs/heads/API" in job['if'] and 'recover_document_formats' in job['if']
     commands = '\n'.join(step.get('run', '') for step in job['steps'])
     assert 'python -u -m financial_ingestion.recover_formats' in commands
+    assert 'docker exec --user appuser uzstock-web python -u -m financial_ingestion.recover_formats' in commands
     assert 'org.opencontainers.image.revision' in commands and 'git rev-parse HEAD' in commands
     assert 'publish' not in commands and 'docker build' not in commands
 

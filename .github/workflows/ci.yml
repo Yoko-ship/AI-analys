@@ -1925,7 +1925,7 @@ jobs:
           if systemctl is-active --quiet uzstock-financial-ingestion.timer; then restart_timer=true; fi
           trap 'if [ "$restart_timer" = true ]; then systemctl start uzstock-financial-ingestion.timer; fi' EXIT
           systemctl stop uzstock-financial-ingestion.timer uzstock-financial-ingestion.service
-          docker exec uzstock-web python -u -m financial_ingestion.recover_formats
+          docker exec --user appuser uzstock-web python -u -m financial_ingestion.recover_formats
           REMOTE
 
   backfill-column-sources:
