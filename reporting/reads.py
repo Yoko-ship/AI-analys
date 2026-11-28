@@ -4,10 +4,15 @@ from datetime import date
 
 import catalogue.sources as sources
 import sector_report_service as service
-from . import store
+from . import read_cache, store
 
 
 def read_report(issuer, standard, period, scope, lang):
+    return read_cache.get_or_build(issuer, standard, period, scope, lang,
+        lambda: _prepare(issuer, standard, period, scope, lang))
+
+
+def _prepare(issuer, standard, period, scope, lang):
     missing = False
 
     def read_source(*args):
@@ -24,4 +29,5 @@ def read_report(issuer, standard, period, scope, lang):
                        date=date.today().isoformat(), source=report.get('source_snapshot_hash'))
         store.enqueue(issuer['ticker'], 'report-read:' + json.dumps(context, sort_keys=True),
                       reason='report_source_detail_missing')
-    return service.public_report(report)
+    complete = report.get('status') == 'available' and not report.get('source_refresh_failed')
+    return service.public_report(report), complete
