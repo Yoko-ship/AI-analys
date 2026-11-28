@@ -61,5 +61,6 @@ for (const width of [1440, 390]) test(`Telegram branded news preview at ${width}
   await expect(preview).toContainText('https://uzstock.uz/news/10528');
   await expect(preview).not.toContainText('UzDaily');
   await expect(preview).not.toContainText('uzdaily.uz');
+  await expect(page.getByRole('dialog')).not.toContainText('Текст включает прямую ссылку и оригиналы');
   await page.getByRole('dialog').screenshot({ path: info.outputPath(`telegram-branding-${width}.png`) });
 });
