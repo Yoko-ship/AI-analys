@@ -64,7 +64,7 @@ def test_claims_are_exclusive_and_expired_workers_cannot_overwrite_new_work():
     first = v.claim(NOW)
     assert first["id"] == item["id"] and first["lease_token"]
     assert v.claim(NOW) is None
-    later = NOW + timedelta(hours=2)
+    later = NOW + timedelta(minutes=7)
     second = v.claim(later)
     assert second["id"] == first["id"] and second["lease_token"] != first["lease_token"]
     with pytest.raises(MarketingError):

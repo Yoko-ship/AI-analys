@@ -104,7 +104,7 @@ def claim(now):
             return None
         item = queued[-1]
         return _save(c, item, status="rendering", stage="narration", reason="", attempts=item["attempts"] + 1,
-                     lease_token=secrets.token_urlsafe(32), lease_until=(now + timedelta(hours=1)).isoformat())
+                     lease_token=secrets.token_urlsafe(32), lease_until=(now + timedelta(minutes=5)).isoformat())
 
 
 def leased(c, identifier, token, now):
@@ -119,7 +119,7 @@ def progress(identifier, token, stage, now):
     with s.connection(write=True) as c:
         item = leased(c, identifier, token, now)
         _heartbeat(c, now)
-        return _save(c, item, stage=stage, lease_until=(now + timedelta(hours=1)).isoformat())
+        return _save(c, item, stage=stage, lease_until=(now + timedelta(minutes=5)).isoformat())
 
 
 def fail(identifier, token, now):
