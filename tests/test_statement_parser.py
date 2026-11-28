@@ -389,6 +389,49 @@ def test_interim_title_cannot_supply_a_missing_comparative_balance_date():
     assert statements.columns(header) == []
 
 
+def test_otngk_numeric_dates_keep_the_printed_values_and_period_evidence():
+    import json
+    from pathlib import Path
+    source = json.loads(Path('tests/fixtures/financial_documents/otngk-2016-ocr.json').read_text(encoding='utf-8'))
+    current, previous = parse({2: source['refined']})
+    for candidate, year, assets in [(current, 2016, '94208639'), (previous, 2015, '107303999')]:
+        assert candidate['classification']['period_end'] == f'{year}-12-31'
+        assert candidate['classification']['unit_scale'] == '1000'
+        assert candidate['figures']['total_assets']['raw_value'] == assets
+        assert candidate['figures']['total_assets']['page'] == 2
+        assert '31.12.2016' in candidate['classification']['period_evidence']
+
+
+@pytest.mark.parametrize('dates,expected', [
+    ('30.06.2024  31.12.2023', [(2024, '2024-06-30'), (2023, '2023-12-31')]),
+    ('31 / 12 / 2023  31-12-2024', [(2023, '2023-12-31'), (2024, '2024-12-31')]),
+    ('2024-06-30  2023/12/31', [(2024, '2024-06-30'), (2023, '2023-12-31')]),
+    ('12/31/2024  12/31/2023', [(2024, '2024-12-31'), (2023, '2023-12-31')]),
+    ('31.12.2024  31 December 2023  01.01.2023', [(2024, '2024-12-31'), (2023, '2023-12-31'), (2023, '2023-01-01')]),
+    ('31.02.2024  31 December 2023', []),
+    ('06/07/2024  31 December 2023', []),
+    ('31.13.2024  31.12.2023', []),
+])
+def test_numeric_statement_columns_preserve_order_and_reject_ambiguous_dates(dates, expected):
+    assert statements.columns('Statement of financial position\n' + dates) == expected
+
+
+def test_numeric_income_duration_preserves_explicit_start(pages):
+    pages[8] = pages[8].replace('Year ended 31 December 2024', 'From 2024-04-01 to 2024-12-31')
+    current, previous = parse(pages)
+    assert current['classification']['period_start'] == '2024-04-01'
+    assert previous['classification']['period_start'] is None
+
+
+def test_sane_page_banner_years_cannot_replace_lost_table_column_dates():
+    import json
+    from pathlib import Path
+    source = json.loads(Path('tests/fixtures/financial_documents/sane-2016-ocr.json').read_text(encoding='utf-8'))
+    candidates = parse({2: source['text']})
+    assert all(c['classification']['document_year'] != 2017 for c in candidates)
+    assert all('cash' not in c['figures'] for c in candidates)
+
+
 def test_expense_can_be_derived_without_guessing_an_unreadable_zero(pages):
     pages[8] = pages[8].replace('Interest expense                 (100,000)    (90,000)',
         'Other interest expense    (100,000)    +\nNet interest income    400,000    310,000')

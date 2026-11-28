@@ -571,7 +571,8 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
               </a>
             ))}
             {source?.excel_url && <a className="company-insight-action" href={safeHref(source.excel_url)} target="_blank" rel="noreferrer">{t("Открыть Excel-отчёт ↗", "Excel hisobotni ochish ↗", "Open Excel report ↗")}</a>}
-            {!source?.excel_url && (source?.archived_url || source?.pdf_url) && <a className="company-insight-action" href={safeHref(source.archived_url || source.pdf_url)} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
+            {!source?.excel_url && (source?.rendered_url || source?.archived_url || source?.pdf_url) && <a className="company-insight-action" href={safeHref(source.rendered_url || source.archived_url || source.pdf_url)} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
+            {source?.rendered_url && source?.archived_url && <a className="company-insight-action" href={safeHref(source.archived_url)} target="_blank" rel="noreferrer">{t("Скачать оригинал ↗", "Asl hujjatni yuklab olish ↗", "Download original ↗")}</a>}
           </div>
         )}
       </article>

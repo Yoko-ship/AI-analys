@@ -160,7 +160,7 @@ test('a public microfinance balance line opens its structured Openinfo filing', 
 test('Biznes Finans annual profit and its source are shared by its bonds', async ({page}) => {
   const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
   const fixture = JSON.parse(execFileSync(python, ['-c', `
-import asyncio, json, os, tempfile
+import asyncio, json, os, tempfile, dbx
 from catalogue.storage import get_catalog_conn
 from catalogue.facts import upsert_facts
 from server.company.financials import financial_series, financial_passport
@@ -173,6 +173,7 @@ with tempfile.TemporaryDirectory() as scratch:
     upsert_facts([{'entity_id':'922','dataset':'financial_indicators','field':'net_profit','value':10998939.67,
                    'period':'2025','unit':'UZS','source':'nsbu_derived_indicators','source_url':'nsbu-excel:BFMT2B5:2025'}])
     print(json.dumps({'series':asyncio.run(financial_series('BFMT2B5')), 'passport':asyncio.run(financial_passport('BFMT2B5','2025','net_profit'))}))
+    dbx.reset_pools()
 `], {encoding:'utf8'}));
   await page.addInitScript(() => {
     localStorage.setItem('uz_stock_analyzer_language','en');
@@ -191,4 +192,37 @@ with tempfile.TemporaryDirectory() as scratch:
   await profit.getByRole('button',{name:'54.72',exact:true}).click();
   await expect(page.getByRole('dialog').getByRole('link',{name:/PDF/i})).toHaveAttribute(
     'href', 'https://openinfo.uz/media/audition/271f1719-cd04-470b-b834-e503925cb0c3.pdf');
+});
+
+test('source passport offers rendered PDF and preserved Word original', async ({ page }, testInfo) => {
+  const original = '/api/company/UZTL/financials/documents/' + 'a'.repeat(64);
+  const rendered = '/api/company/UZTL/financials/documents/' + 'b'.repeat(64);
+  await page.addInitScript(() => {
+    localStorage.setItem('uz_stock_analyzer_language', 'en');
+    sessionStorage.setItem('uz_sponsor_seen', '1');
+  });
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    let data = { ok: true, items: [], companies: [], securities: {} };
+    if (url.pathname.endsWith('/financials')) data = {
+      ok: true, periods: ['2024'], series: { net_profit: { money: true, unit: 'UZS', values: { 2024: 1000000000 } } },
+    };
+    if (url.pathname.endsWith('/financials/passport')) data = { ok: true, status: 'SOURCED', source: {
+      raw_value: 1000000, normalized_value: 1000000000, currency: 'UZS', unit_scale: 1000,
+      archived_url: original, rendered_url: rendered, pdf_url: 'https://openinfo.uz/media/report.doc',
+    } };
+    return route.fulfill({ json: data });
+  });
+  await page.goto('/company/UZTL?tab=financials');
+  await page.getByRole('button', { name: 'Table', exact: true }).click();
+  await page.locator('.company-financials .fin-table').getByRole('button', { name: '1', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('link', { name: 'Open PDF report' })).toHaveAttribute('href', rendered);
+  await expect(dialog.getByRole('link', { name: 'Download original' })).toHaveAttribute('href', original);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await dialog.getByRole('link', { name: 'Download original' }).focus();
+  await expect(dialog.getByRole('link', { name: 'Download original' })).toBeFocused();
+  await expect(dialog.getByRole('link', { name: 'Open PDF report' })).toBeVisible();
+  await dialog.screenshot({ path: testInfo.outputPath('converted-document-passport.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

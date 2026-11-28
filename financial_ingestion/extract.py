@@ -126,9 +126,12 @@ def page_texts(payload, *, ocr=False):
                       if number in p['statement_pages']]
         mismatches = sum(bool({'BALANCE_MISMATCH', 'INCOME_MISMATCH', 'INCOME_RECONCILIATION_INVALID'} & set(validation.validate(p, page_count=evidence['page_count'])['errors']))
                          for p in candidates)
+        # Readable financial rows still carry evidence when dates or units are unresolved.
+        rows = {row[0] for line in statements.statement_lines(text)
+                if (row := statements.row_label(line)) and re.search(r'\d', row[2])}
         return (sum(f['page']==number for p in candidates for f in p['figures'].values()) - 8*mismatches,
                 sum(bool(p.get('income_reconciliation')) for p in candidates),
-                sum(bool(p['classification']['unit_scale']) for p in candidates))
+                sum(bool(p['classification']['unit_scale']) for p in candidates), len(rows))
 
     def complete(number):
         candidates = [p for p in statements.proposals(pages, evidence) if number in p['statement_pages']]
@@ -322,9 +325,10 @@ def extract_job(job, *, ocr=False):
             "SELECT x.*,r.id AS approved_review FROM ingest_candidates x "
             "JOIN ingest_versions v ON v.id=x.version_id JOIN ingest_sources s ON s.id=v.source_id "
             "LEFT JOIN ingest_reviews r ON r.candidate_id=x.id AND r.decision='APPROVED' "
-            "WHERE s.org_id=? AND v.sha=? AND x.processor=? AND x.version_id<>? "
+            "WHERE s.org_id=? AND v.sha=? AND (x.processor=? OR EXISTS ("
+            "SELECT 1 FROM ingest_candidate_runs run WHERE run.candidate_id=x.id AND run.processor=?)) AND x.version_id<>? "
             "ORDER BY CASE WHEN r.id IS NULL THEN 1 ELSE 0 END,x.created_at DESC,x.id",
-            (row['org_id'], row['sha'], job['processor'], job['version_id'])).fetchall()
+            (row['org_id'], row['sha'], job['processor'], job['processor'], job['version_id'])).fetchall()
     finally:
         c.close()
     if ocr:
@@ -333,6 +337,7 @@ def extract_job(job, *, ocr=False):
         cached = [candidate for candidate in cached if candidate['approved_review'] or
                   'ocr_survey_pages' in json.loads(candidate['payload_json']).get('extraction', {})]
     content = documents.read_artifact(row["sha"])
+    content, conversion = documents.extraction_pdf(job, row['sha'], content)
     entries = [e for e in review_entries() if str(e["org_id"]) == row["org_id"]
                and e["sha256"] == row["sha"]]
     proposals = []
@@ -363,7 +368,9 @@ def extract_job(job, *, ocr=False):
                 raise ValueError("Reviewed document identity/page count is invalid")
             proposals.append((validation.from_review(entry), count, entry))
     else:
-        pages, evidence = page_texts(content, ocr=ocr)
+        pages, evidence = page_texts(content, ocr=ocr or conversion is not None)
+        if conversion:
+            evidence['conversion'] = conversion
         # A new issuer/report does not need a checked-in review or ticker rule
         # to extract every dated statement column. Historical ledger entries
         # above remain immutable review evidence for the previous recovery.
@@ -371,14 +378,14 @@ def extract_job(job, *, ocr=False):
         proposals.extend((payload, evidence["page_count"], None)
                          for payload in parsed or [draft(pages, evidence)])
     result = []
+    approved_results = []
     with store.transaction() as c:
         store.assert_lease(c, job)
         for payload, count, entry in proposals:
             payload["page_count"] = count
             checks = validation.validate(payload, page_count=count)
-            candidate = store.digest([job["version_id"], job["processor"], payload])
-            c.execute("INSERT INTO ingest_candidates VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
-                      (candidate, job["version_id"], job["processor"], store.encoded(payload), store.encoded(checks), store.now()))
+            candidate = store.record_candidate(c, job["version_id"], job["processor"], payload, checks,
+                                               job_id=job["id"])
             if entry and checks["valid"]:
                 actor = "review-ledger:" + store.digest(entry)
                 reason = "Visual source-page review " + entry.get("reviewed_at", "date not supplied")
@@ -395,7 +402,8 @@ def extract_job(job, *, ocr=False):
                           (review, candidate, actor, 'APPROVED', reason, store.now()))
                 store.event(c, candidate, 'review.reused', actor=actor, original_review=original, sha=row['sha'])
             result.append(candidate)
-        approved = all((entry or store.digest(payload) in reused_reviews) and validation.validate(payload, page_count=count)['valid']
-                       for payload, count, entry in proposals)
+            approved_results.append(checks["valid"] and bool(c.execute(
+                "SELECT 1 FROM ingest_reviews WHERE candidate_id=? AND decision='APPROVED'", (candidate,)).fetchone()))
+        approved = all(approved_results)
         store.finish(c, job, "SUCCEEDED" if approved else "NEEDS_REVIEW")
     return result

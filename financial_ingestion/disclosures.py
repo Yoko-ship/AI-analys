@@ -5,7 +5,7 @@ import re
 import time
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
-from . import store
+from . import formats, store
 
 API = "https://new-api.openinfo.uz/api/v2"
 WEB = "https://openinfo.uz"
@@ -72,7 +72,7 @@ def _attachments(detail, row):
             # Annual workbooks are handled by the dated share-supplement importer.
             continue
         if (parsed.scheme != "https" or parsed.netloc != "openinfo.uz" or parsed.query or parsed.fragment
-                or not path.startswith("/media/") or not (workbook or path.lower().endswith(".pdf"))
+                or not path.startswith("/media/") or not (workbook or path.lower().endswith(tuple('.' + ext for ext in formats.EXTENSIONS)))
                 or ".." in path.split("/") or "\\" in path):
             raise ValueError("Unsupported OpenInfo disclosure attachment")
         found.setdefault(url, {"url": url, "category": category, "metadata": {

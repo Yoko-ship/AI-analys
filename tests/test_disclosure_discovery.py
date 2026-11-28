@@ -167,3 +167,12 @@ def test_nonbank_attachments_supported_when_requested(setup):
     remember(kind='jsc')
     assert disclosures.discover(processor='test',fetch=lambda _:pytest.fail())['requests']==0
     assert disclosures.discover(ticker='BRBN',processor='test',fetch=lambda _:detail())['sources']==2
+
+
+@pytest.mark.parametrize('extension', ['doc', 'docx', 'JPG', 'jpeg', 'png', 'tiff'])
+def test_annual_attachment_discovery_accepts_supported_documents(setup, extension):
+    remember()
+    payload = detail()
+    payload['int_report'] = 'https://openinfo.uz/media/int_report/report.' + extension
+    result = disclosures.discover(ticker='BRBN', processor='test', fetch=lambda _: payload)
+    assert result['sources'] == 2 and result['errors'] == []

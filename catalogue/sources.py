@@ -3,7 +3,7 @@ from __future__ import annotations
 from collectors.openinfo.settings import OPENINFO_API_BASE
 from collectors.openinfo.settings import OPENINFO_WEB_BASE
 from collectors.openinfo.settings import REQUEST_TIMEOUT
-from collectors.openinfo.documents import _build_report_document
+from collectors.openinfo.documents import _build_report_document, fetch_statement_period
 from collectors.openinfo.transport import _json_get
 from collectors.openinfo.transport import _make_session
 from collectors.openinfo.spreadsheets import parse_excel_report_document

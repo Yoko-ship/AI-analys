@@ -46,6 +46,11 @@ def _schema(c):
     CREATE TABLE IF NOT EXISTS ingest_version_filing_checks (
       version_id TEXT PRIMARY KEY REFERENCES ingest_versions(id), metadata_json TEXT NOT NULL, checked_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS ingest_renditions (
+      source_sha TEXT NOT NULL REFERENCES ingest_artifacts(sha), converter TEXT NOT NULL,
+      pdf_sha TEXT NOT NULL REFERENCES ingest_artifacts(sha), created_at TEXT NOT NULL,
+      PRIMARY KEY(source_sha,converter)
+    );
     CREATE TABLE IF NOT EXISTS ingest_jobs (
       id TEXT PRIMARY KEY, dedupe_key TEXT NOT NULL UNIQUE,
       source_id TEXT NOT NULL REFERENCES ingest_sources(id), version_id TEXT,
@@ -64,6 +69,11 @@ def _schema(c):
       id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL REFERENCES ingest_candidates(id),
       actor TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT NOT NULL,
       created_at TEXT NOT NULL, UNIQUE(candidate_id,decision,actor,reason)
+    );
+    CREATE TABLE IF NOT EXISTS ingest_candidate_runs (
+      candidate_id TEXT NOT NULL REFERENCES ingest_candidates(id),
+      processor TEXT NOT NULL, checks_json TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(candidate_id,processor)
     );
     CREATE TABLE IF NOT EXISTS ingest_snapshots (
       id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL REFERENCES ingest_candidates(id),
@@ -98,8 +108,49 @@ def _schema(c):
 def connect():
     from catalogue.storage import get_catalog_conn
     c = get_catalog_conn()
-    dbx.ensure_schema(c, "financial-ingestion-v4", _schema)
+    dbx.ensure_schema(c, "financial-ingestion-v5", _schema)
     return c
+
+
+def record_candidate(c, version_id, processor, payload, checks, *, job_id=None):
+    """Keep one immutable candidate for identical evidence within a source version."""
+    payload_json = encoded(payload)
+    # Preserve existing IDs and reviews, preferring an already published
+    # candidate when earlier processors left duplicate rows behind.
+    existing = c.execute(
+        "SELECT x.id FROM ingest_candidates x WHERE x.version_id=? AND x.payload_json=? "
+        "ORDER BY CASE WHEN EXISTS (SELECT 1 FROM ingest_snapshots p WHERE p.candidate_id=x.id) THEN 0 "
+        "WHEN EXISTS (SELECT 1 FROM ingest_reviews r WHERE r.candidate_id=x.id AND r.decision='APPROVED') THEN 1 "
+        "ELSE 2 END,x.created_at,x.id LIMIT 1", (version_id, payload_json)).fetchone()
+    candidate = existing["id"] if existing else digest([version_id, payload])
+    c.execute("INSERT INTO ingest_candidates VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+              (candidate, version_id, processor, payload_json, encoded(checks), now()))
+    c.execute("INSERT INTO ingest_candidate_runs VALUES (?,?,?,?) ON CONFLICT(candidate_id,processor) "
+              "DO UPDATE SET checks_json=excluded.checks_json,created_at=excluded.created_at",
+              (candidate, processor, encoded(checks), now()))
+    if existing:
+        event(c, candidate, "candidate.reused", processor=processor, job=job_id)
+    return candidate
+
+
+def candidates_for_processor(c, processor, *, version_id=None, org_id=None):
+    """Candidates produced or revalidated by this processor, including legacy rows."""
+    filters = ["(x.processor=? OR run.candidate_id IS NOT NULL)"]
+    args = [processor, processor]
+    if version_id is not None:
+        filters.append("x.version_id=?")
+        args.append(version_id)
+    if org_id is not None:
+        filters.append("s.org_id=?")
+        args.append(str(org_id))
+    return [dict(row) for row in c.execute(
+        "SELECT x.id,x.version_id,x.processor,x.payload_json,x.created_at,"
+        "COALESCE(run.checks_json,x.checks_json) AS checks_json,"
+        "EXISTS (SELECT 1 FROM ingest_reviews r WHERE r.candidate_id=x.id AND r.decision='APPROVED') AS approved "
+        "FROM ingest_candidates x JOIN ingest_versions v ON v.id=x.version_id "
+        "JOIN ingest_sources s ON s.id=v.source_id "
+        "LEFT JOIN ingest_candidate_runs run ON run.candidate_id=x.id AND run.processor=? "
+        "WHERE " + " AND ".join(filters), args).fetchall()]
 
 
 @contextmanager

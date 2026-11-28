@@ -221,6 +221,11 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
             parsed = _parse_workbook_uncached(session, rec["excel_url"])
             if not parsed.get("ok"):
                 raise ValueError(parsed.get("error") or "Workbook export failed")
+            quarter = catalogue_periods._stated_quarter(parsed)
+            year, quarter = catalogue_periods._quarter_period_from_publication(
+                quarter, pub, catalogue_periods._stated_reporting_date(parsed))
+            if year is None:
+                raise ValueError("Workbook has no explicit completed reporting period")
 
         except Exception as exc:  # noqa: BLE001 — one bad workbook is not the sweep
 
@@ -237,11 +242,6 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
             if pace:
                 time.sleep(pace)
             continue
-
-        quarter = catalogue_periods._stated_quarter(parsed) or catalogue_periods._PUB_MONTH_QUARTER[pub.month]
-
-        year, quarter = catalogue_periods._quarter_period_from_publication(
-            quarter, pub, catalogue_periods._stated_reporting_date(parsed))
 
         if catalogue_periods._is_future_period(year, quarter):
 

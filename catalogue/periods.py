@@ -12,60 +12,17 @@ import re
 
 
 def _extract_year(report: dict[str, Any]) -> int | None:
-
+    """Read unambiguous year metadata; publication timing supplies no year."""
     props = report.get("properties") or {}
-
+    years = set()
     for field in ("reporting_year", "year"):
-
-        v = props.get(field)
-
-        if v is not None:
-
-            try:
-
-                yr = int(v)
-
-                if 2000 <= yr <= 2100:
-
-                    return yr
-
-            except (TypeError, ValueError):
-
-                pass
-
-    title = str(props.get("report_title") or "")
-
-    m = re.search(r"\b(20[12]\d)\b", title)
-
-    if m:
-
-        return int(m.group(1))
-
-    # A publication date is not a PDF's accounting period. Late annuals and
-
-    # interim IFRS filings otherwise silently become the wrong financial year.
-
-    if report.get("report_type") in {"MSFO", "Audition"}:
-
-        return None
-
-    pub = str(report.get("pub_date") or "")
-
-    if len(pub) >= 4:
-
-        try:
-
-            yr = int(pub[:4])
-
-            pt = str(props.get("report_type") or "annual").lower()
-
-            return yr - 1 if pt == "annual" else yr
-
-        except (TypeError, ValueError):
-
-            pass
-
-    return None
+        value = str(props.get(field) or "").strip()
+        if re.fullmatch(r"20\d{2}", value):
+            years.add(int(value))
+    if years:
+        return next(iter(years)) if len(years) == 1 else None
+    years = set(re.findall(r"\b(20\d{2})\b", str(props.get("report_title") or "")))
+    return int(next(iter(years))) if len(years) == 1 else None
 
 
 def _extract_quarter(period_str: str) -> int | None:
@@ -225,26 +182,10 @@ def _is_fresh(last_synced_at: str | None) -> bool:
         return False
 
 
-def _effective_annual_year(labeled_year: int, pub_date: str | None) -> int:
-    """The fiscal year an annual record can actually describe.
-
-    openinfo stamps many annuals with the UPLOAD season's year rather than the
-    fiscal year: fleet-wide, the FY2019 annual of almost every issuer is labeled
-    "2020" (published mid-2020, next to a second, genuine 2020), and several
-    issuers carry impossible "FY2026" labels on their FY2025 filings. A period
-    cannot end after the report describing it was published, so the label is
-    clamped to the last fiscal year complete at publication — the same invariant
-    period_year_quarter (openinfo_reconcile) applies on the unified-feed path.
-    A label EARLIER than the bound is left alone: late filings are normal
-    (AGMKP published its FY2021 annual in 2023 and its label is correct).
-    """
-    if not pub_date:
-        return labeled_year
-    try:
-        pub_year = int(str(pub_date)[:4])
-    except (TypeError, ValueError):
-        return labeled_year
-    return min(labeled_year, pub_year - 1)
+def _effective_annual_year(labeled_year: int, pub_date: str | None) -> int | None:
+    """Keep an explicit completed year; a conflict requires source evidence."""
+    from nsbu_periods import stated_period
+    return stated_period(labeled_year, "annual", published_at=pub_date)[0]
 
 
 def _hours_since(stamp: Any) -> float | None:
@@ -261,14 +202,7 @@ def _hours_since(stamp: Any) -> float | None:
     return (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
 
 
-_QUARTER_END_MONTH = {1: 3, 2: 6, 3: 9, 4: 12}
-
-
 _STATED_QUARTER_LABELS = ("период квартала", "chorak davri", "chorak muddati")
-
-
-_PUB_MONTH_QUARTER = {1: 3, 2: 3, 3: 3, 4: 1, 5: 1, 6: 1,
-                      7: 2, 8: 2, 9: 2, 10: 3, 11: 3, 12: 3}
 
 
 def _stated_quarter(parsed: dict[str, Any] | None) -> int | None:
@@ -359,29 +293,7 @@ def header_period_conflict(parsed: dict[str, Any] | None, year: int, quarter: in
 
 
 def _quarter_period_from_publication(quarter: int, pub: datetime | None,
-                                     stated: date | None = None) -> tuple[int, int]:
-    """(fiscal year, quarter) for a filing published on ``pub``.
-
-    A period cannot end after the report describing it was published — the same
-    invariant :func:`_effective_annual_year` applies to annuals. So the year is
-    the publication year when the quarter had already closed by then, and the
-    year before it otherwise (a late filing).
-
-    The publication date alone assumes a filing is less than a year late.
-    UQEQ disclosed its 2021 half-year on 2022-09-14, which the publication
-    date alone files as 2022Q2. Its header states «Дата отчетности: 2021-07-29»,
-    so when the workbook states an earlier date, that date places the year — the
-    rule period_year_quarter (openinfo_reconcile) applies to the same stamp.
-    """
-    year = None
-    if pub is not None:
-        year = pub.year if pub.month > _QUARTER_END_MONTH[quarter] else pub.year - 1
-    if stated:
-        # A stated date is the period end (2021-09-30 for a nine-month) or the
-        # last working day before it — banks stamp 2025-03-28 on a Q1 — or the
-        # filing day after it. A month's grace keeps the first two in their
-        # own year; the year before ends twelve months earlier.
-        end = date(stated.year, _QUARTER_END_MONTH[quarter], 30 if quarter in (2, 3) else 31)
-        own = stated.year if end <= stated + timedelta(days=31) else stated.year - 1
-        year = own if year is None else min(year, own)
-    return year, quarter
+                                     stated: date | None = None) -> tuple[int | None, int | None]:
+    """Use the declared year and quarter, without a publication-date fallback."""
+    from nsbu_periods import stated_period
+    return stated_period(stated, "quarter", quarter=quarter, published_at=pub)

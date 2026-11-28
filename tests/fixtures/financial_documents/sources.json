@@ -1,0 +1,36 @@
+[
+  {
+    "job_id": "d12d1cbf598c8a843704f9451cf24c72cb5b8546b4b44c52798abe6aa93ea2cb",
+    "ticker": "MIQE",
+    "pdf_url": "https://openinfo.uz/media/audition/Закл.аудит_нац.станд_за_2019г.jpg",
+    "bytes": 216388,
+    "sha256": "c5d6bd473387a264414c60943ff9ec9327d6f741f3c6c6c04104f77100fe1d48",
+    "signature": "ffd8ffe000104a464946000101010096",
+    "detected_format": "JPEG",
+    "fixture": "miqe.jpg"
+  },
+  {
+    "job_id": "13043484d69b0a670af8ad4de1f9ae7be1abc17607e5b6b09e06638d6e6480d8",
+    "ticker": "UZHM",
+    "pdf_url": "https://openinfo.uz/media/audition/9dd824e0-18bd-4110-8508-87e8fec60980.docx",
+    "bytes": 11314,
+    "sha256": "45239e7003c9a78ecb6c832633ea49f8e607f71a511b3794c125c51d8292fb8e",
+    "signature": "504b030414000600080000002100dfa4",
+    "detected_format": "DOCX",
+    "fixture": "uzhm.docx"
+  },
+  {
+    "job_id": "a785426060f2ef1eb64c44370fa0219c131627727945d17571b33987bde42f18",
+    "ticker": "OTNGK",
+    "pdf_url": "https://openinfo.uz/media/msfo/Годовой_отчет_общества_финансовая_отчетность_итоги_2016_г._МСФО.doc",
+    "bytes": 1125376,
+    "sha256": "acf6561bd3122b5c178fc8c0b8ab43645b38d98b1d63d2fdf9d740c87cb8c792",
+    "signature": "d0cf11e0a1b11ae10000000000000000",
+    "detected_format": "OLE Word document",
+    "fixture": "otngk.doc",
+    "expected_figures": {
+      "2016-12-31": {"total_assets": "94208639", "cash": "890240", "total_equity": "28491476"},
+      "2015-12-31": {"total_assets": "107303999", "cash": "223079", "total_equity": "29349334"}
+    }
+  }
+]

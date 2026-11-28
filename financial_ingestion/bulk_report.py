@@ -52,6 +52,7 @@ def build_report(tickers=None):
         sources = [dict(r) for r in c.execute("SELECT * FROM ingest_sources ORDER BY org_id,url").fetchall()]
         versions = {r["id"]: dict(r) for r in c.execute("SELECT id,sha FROM ingest_versions").fetchall()}
         candidates = [dict(r) for r in c.execute("SELECT * FROM ingest_candidates ORDER BY created_at,id").fetchall()]
+        current_candidates = {r["id"]: r for r in store.candidates_for_processor(c, processor)}
         reviews = [dict(r) for r in c.execute("SELECT candidate_id,decision FROM ingest_reviews").fetchall()]
         snapshots = [dict(r) for r in c.execute("SELECT id,candidate_id FROM ingest_snapshots").fetchall()]
         heads = [dict(r) for r in c.execute("SELECT * FROM ingest_heads").fetchall()]
@@ -102,10 +103,11 @@ def build_report(tickers=None):
             expected = sorted(BANK_FIELDS if is_bank else COMPANY_FIELDS)
             entries = []
             for row in latest_candidates:
-                payload, checks = json.loads(row["payload_json"]), json.loads(row["checks_json"])
+                payload = json.loads(row["payload_json"])
+                checks = json.loads(current_candidates.get(row["id"], row)["checks_json"])
                 meta, figures = payload.get("classification") or {}, payload.get("figures") or {}
                 approved = "APPROVED" in decisions[row["id"]]
-                current = row["processor"] == processor
+                current = row["id"] in current_candidates
                 reviewed = row["processor"] == "reviewed-proposal-v1"
                 # Older parser drafts cannot masquerade as current extraction.
                 if not current and not reviewed and not approved and row["id"] not in ever_published:
@@ -142,7 +144,7 @@ def build_report(tickers=None):
                                    "sha256": versions.get(source["latest_version"], {}).get("sha"),
                                    "no_version": not bool(source["latest_version"]),
                                    "no_candidates": not bool(latest_candidates),
-                                   "no_current_candidates": not any(r["processor"] == processor for r in latest_candidates),
+                                   "no_current_candidates": not any(r["id"] in current_candidates for r in latest_candidates),
                                    "jobs": dict(Counter(j["state"] for j in source_jobs)),
                                    "failures": failures, "candidates": entries})
             totals["active_sources" if active else "retained_sources"] += 1

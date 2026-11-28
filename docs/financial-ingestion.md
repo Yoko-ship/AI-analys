@@ -8,7 +8,7 @@ Deployment target: the existing uzstock.uz VPS, `/root/uzstock/app`, Docker
 ```text
 OpenInfo MSFO + Audit catalog entries
         ↓ discover by issuer + URL (not guessed financial year)
-Persistent FETCH jobs → SHA-256 addressed original PDFs
+Persistent FETCH jobs → SHA-256 addressed original documents
         ↓ EXTRACT jobs, native text + bounded English/Russian OCR
 Immutable candidates → deterministic checks → explicit evidence review
         ↓ explicit publish command; ONE database transaction per issuer
@@ -21,6 +21,46 @@ bytes, stored in `/app/data/financial_artifacts`. Both must be backed up.
 `extract.py` proposes values; `validation.py` checks periods, units, signs,
 balance identity and page/column evidence. `publication.py` alone changes heads.
 
+Source bytes determine the format, not the upstream `pdf_url` field or file
+extension. PDF, Word DOC/DOCX, JPEG, PNG and TIFF files are supported. FETCH
+archives the unchanged original with its actual media type. EXTRACT renders
+Word files with LibreOffice Writer and images with ReportLab, then uses the
+existing page parser and bounded OCR. Converted documents always enable OCR
+because Word files can contain scanned pages. Conversion does not approve data.
+
+Statement dates accept written months, ISO dates and unambiguous numeric dates
+with dots, slashes or hyphens. Invalid dates and ambiguous day/month order remain
+unresolved. Parsing uses a normalized copy; source evidence keeps its printed
+text. Years above the statement heading cannot substitute for table columns.
+When structured results tie, OCR selection prefers more distinct readable
+financial rows with numbers, even if their dates or units are still unresolved.
+
+Renderings are separate immutable artifacts linked in `ingest_renditions` by
+original hash and converter version. Candidate evidence records both hashes;
+cached renderings preserve stable page references on reprocessing. Published
+passports expose both the original download and the rendered PDF. Backups
+include both, and verification still accepts older PDF-only backup manifests.
+
+The runtime image includes LibreOffice Writer and English/Russian Tesseract.
+For local Word conversion, install LibreOffice or set `LIBREOFFICE_BINARY` to
+its console executable. Missing converters and conversion errors belong to
+EXTRACT; they do not discard an already fetched original. Conversion uses a
+separate profile with macros disabled and a 120-second subprocess deadline.
+
+On source rediscovery, terminal failures from the old PDF-only fetcher with
+`Source did not return a PDF` are superseded and a new format-aware fetch is
+queued once. Other terminal failures retain their explicit retry requirement.
+Deploying code alone does not publish recovered financial figures.
+
+Candidate identity depends on the source version and complete extracted evidence,
+not the parser version. Identical re-extractions and unchanged review proposals
+reuse the existing candidate ID, approval and publication. Parser runs and their
+validation results are recorded separately in `ingest_candidate_runs`; coverage
+and release selection use these records to recognize current extraction work.
+Changes to values, periods, scope or evidence still create distinct candidates.
+Existing duplicate rows are retained; this rule prevents new duplicates rather
+than deleting historical reviews or snapshots.
+
 NSBU remains on the existing workbook collector and its existing provenance.
 The bank-history job now **queues IFRS discovery**, not legacy IFRS publication.
 The separate `ifrs_history` status must not be inferred from NSBU job success.
@@ -29,6 +69,24 @@ migrated. First migration refuses to hide any previously published annual year.
 Snapshots feed annual and interim financial-series, passports, and the shared
 `get_all_financials("MSFO")` calculation reader. They do not rewrite the separate
 market-wide calculation ledger or migrate NSBU storage.
+
+## NSBU reporting-period evidence
+
+Explicit source periods take priority. Collection reads the original structured
+statement when listing metadata or workbook headers cannot establish a period.
+Original statement lookups verify the report and issuer IDs.
+
+If the original statement has no reporting date, use the publication year and
+calendar quarter without shifting backwards: September 2022 means 2022 Q3;
+annual reports use 2022. Store `period_source=publication_date` and show
+"Based on publication date" in the filing list. Reported periods carry
+`period_source=reported`. Existing rows with no basis remain unclassified until
+reprocessed. A publication fallback cannot overwrite an existing reported row.
+
+A malformed or contradictory stated date, an unreadable source, or an invalid
+publication date remains an error. These cases do not prove that OpenInfo has
+no report. Historical rows still need source-backed verification; the changed
+resolver does not by itself correct stored history.
 
 ## Safety properties
 
@@ -145,9 +203,18 @@ For a restore drill, restore both into an isolated directory, read every
 referenced hash, run the focused tests, and verify a sampled passport against
 its original PDF. An archive integrity failure blocks publication/downloads.
 
-Required CI gate: `tests/test_financial_ingestion.py`, `tests/test_financial_ingestion_recovery.py`,
-`tests/test_ifrs_financials.py`, `tests/test_bank_history_repair.py`. The wider
-suite has pre-existing failures and is not a substitute for this required gate.
+The full backend suite is a required CI gate. The release image also converts
+real DOC, DOCX and JPEG fixtures and extracts their pages before deployment.
+
+To recover historical `Source did not return a PDF` failures, use the CI input
+`recover_document_formats`, or include `[recover-document-formats]` in an
+authorized release commit on `API`. After deployment, CI verifies the running
+revision, pauses the ingestion timer, and runs
+`python -m financial_ingestion.recover_formats`. This takes a verified backup,
+processes up to 50 affected sources, and reports extracted figure counts and
+validation errors. It does not publish figures or process unrelated jobs.
+The timer resumes if it was active before recovery. Repeating a completed
+recovery reuses the existing artifacts and candidates.
 
 A deliberately authorized release commit on `API` can include `[publish-bank-ifrs]`.
 CI then inspects the live application and systemd worker, verifies a database and

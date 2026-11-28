@@ -52,6 +52,11 @@ on:
         required: false
         type: boolean
         default: false
+      recover_document_formats:
+        description: Reprocess old PDF-format failures without publishing financial figures
+        required: false
+        type: boolean
+        default: false
 
 # Finish an active release instead of cancelling it during a container swap.
 # GitHub retains only the newest pending run for this branch.
@@ -285,6 +290,26 @@ jobs:
               sys.exit('MISSING in the server image: ' + ', '.join(missing))
           print('all collector dependencies present')
           "
+      - name: Verify Word and image extraction in the release image
+        run: |
+          docker run --rm -i --network none --user appuser --entrypoint python \
+            -v "$PWD/tests/fixtures/financial_documents:/fixtures:ro" uz-stock-bot - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          from financial_ingestion import formats, extract, statements
+          for source in json.loads(Path('/fixtures/sources.json').read_text()):
+              original = Path('/fixtures', source['fixture']).read_bytes()
+              assert hashlib.sha256(original).hexdigest() == source['sha256']
+              pdf = formats.to_pdf(original, formats.identify(original))
+              pages, evidence = extract.page_texts(pdf, ocr=True)
+              assert evidence['page_count'] > 0 and not evidence['ocr_errors'], evidence
+              candidates = statements.proposals(pages, evidence)
+              for period, figures in source.get('expected_figures', {}).items():
+                  candidate = next(c for c in candidates if c['classification']['period_end'] == period)
+                  for field, value in figures.items():
+                      assert candidate['figures'][field]['raw_value'] == value, (source['fixture'], period, field)
+              print(source['fixture'], evidence['page_count'], 'pages extracted')
+          PY
       - name: Run the nginx edge configuration in a real nginx
         # The deploy writes this into the live nginx; prove here that nginx
         # accepts it and that it limits per visitor, not per proxy. Requests
@@ -1887,6 +1912,47 @@ jobs:
           test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$1"
           docker exec uzstock-web python -u -m governance_collection --force 2>&1 \
             | python3 scripts/ci_log.py governance-backfill 300
+          REMOTE
+
+  recover-document-formats:
+    name: Recover Word and image filing failures
+    environment: uzstock-production
+    needs: deploy-production
+    if: github.ref == 'refs/heads/API' && ((github.event_name == 'workflow_dispatch' && inputs.recover_document_formats) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[recover-document-formats]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect running release and recover affected documents
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA'" <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          pwd -P
+          test "$(git rev-parse HEAD)" = "$1"
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$1"
+          systemctl show uzstock-financial-ingestion.service -p FragmentPath -p ActiveState
+          restart_timer=false
+          if systemctl is-active --quiet uzstock-financial-ingestion.timer; then restart_timer=true; fi
+          trap 'if [ "$restart_timer" = true ]; then systemctl start uzstock-financial-ingestion.timer; fi' EXIT
+          systemctl stop uzstock-financial-ingestion.timer uzstock-financial-ingestion.service
+          docker exec --user appuser uzstock-web python -u -m financial_ingestion.recover_formats
           REMOTE
 
   backfill-column-sources:

@@ -130,9 +130,7 @@ def prepare_jobs(org_ids, *, ocr=False, retry_failed=False):
                                category=source["category"], metadata=json.loads(source["metadata_json"]),
                                processor=processor)
             if ocr and source["latest_version"]:
-                candidates = c.execute("SELECT payload_json,checks_json FROM ingest_candidates "
-                                       "WHERE version_id=? AND processor=?",
-                                       (source["latest_version"], processor)).fetchall()
+                candidates = store.candidates_for_processor(c, processor, version_id=source["latest_version"])
                 # One resumable OCR pass per parser/version for native-only gaps.
                 def needs_ocr(candidate):
                     from .bulk_report import BANK_FIELDS, COMPANY_FIELDS

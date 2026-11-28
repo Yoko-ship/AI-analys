@@ -7,9 +7,9 @@ import tempfile
 import time
 from urllib.parse import urlparse, urljoin
 
-from . import source_policy, store, workbooks
+from . import formats, source_policy, store, workbooks
 
-FETCH_VERSION = "bounded-openinfo-v2"
+FETCH_VERSION = "bounded-documents-v2"
 
 
 def artifact_root():
@@ -20,15 +20,13 @@ def artifact_root():
 
 
 def file_format(payload):
-    if payload.startswith(b'PK\x03\x04'):
-        return '.xlsx', workbooks.MEDIA_TYPE
-    return '.pdf', 'application/pdf'
+    kind = formats.identify(payload)
+    return '.' + kind, formats.MEDIA_TYPES[kind]
 
 
 def archive(payload: bytes):
     sha = hashlib.sha256(payload).hexdigest()
-    suffix, _ = file_format(payload)
-    relative = sha[:2] + "/" + sha + suffix
+    relative = sha[:2] + "/" + sha + "." + formats.identify(payload)
     path = artifact_root() / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
@@ -61,9 +59,9 @@ def archive(payload: bytes):
 def read_artifact(sha):
     if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):
         raise ValueError("Invalid artifact identifier")
-    path = artifact_root() / sha[:2] / (sha + ".pdf")
-    if not path.exists():
-        path = path.with_suffix(".xlsx")
+    root = artifact_root() / sha[:2]
+    path = next((root / (sha + '.' + ext) for ext in formats.MEDIA_TYPES
+                 if (root / (sha + '.' + ext)).exists()), root / (sha + '.pdf'))
     content = path.read_bytes()
     if hashlib.sha256(content).hexdigest() != sha:
         raise ValueError("Archived file is corrupt")
@@ -90,6 +88,12 @@ def register(c, *, org_id, ticker, url, category, metadata, processor, refresh_d
               "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=excluded.metadata_json,"
               "last_seen=excluded.last_seen,category=excluded.category",
               (source_id, str(org_id), ticker, url, category, store.encoded(metadata), store.now(), store.now()))
+    for failed in c.execute("SELECT id FROM ingest_jobs WHERE source_id=? AND stage='FETCH' "
+                            "AND state='FAILED' AND processor<>? AND error='Source did not return a PDF'",
+                            (source_id, FETCH_VERSION)).fetchall():
+        c.execute("UPDATE ingest_jobs SET state='SUPERSEDED',updated_at=? WHERE id=?", (store.now(), failed['id']))
+        store.event(c, failed['id'], 'job.superseded', reason='Document format support added')
+        store.enqueue(c, source_id, 'FETCH', FETCH_VERSION, generation='format-upgrade:' + failed['id'])
     # A refreshed source gets a new job, while an unfinished attempt retains
     # its retry schedule. Failed jobs require an explicit operator retry.
     if old:
@@ -115,8 +119,7 @@ def register(c, *, org_id, ticker, url, category, metadata, processor, refresh_d
 
 
 def discover(*, ticker=None, processor):
-    # NSBU continues through its established workbook collector. Only PDF
-    # candidates enter this rollout; it does not take ownership of NSBU writes.
+    # NSBU keeps its workbook collector; document ingestion does not own its writes.
     import reports_catalog as rc
     import catalogue.filings as catalogue_filings
     import catalogue.storage as catalogue_storage
@@ -245,17 +248,13 @@ def fetch_job(job, processor, fetch=None):
           and metadata["report_form"] == source["category"] and source["category"] in {"MSFO", "Audition"}):
         options["approved_openinfo"] = True
     payload = fetch(source["url"]) if fetch else download_pdf(source["url"], **options)
-    if urlparse(source["url"]).path.lower().endswith(".xlsx"):
-        workbooks.check_package(payload)
-    elif not payload.startswith(b"%PDF-"):
-        raise ValueError("Source did not return a PDF")
-    _, media_type = file_format(payload)
+    kind = formats.identify(payload)
     sha, path = archive(payload)
     version_id = store.digest([source["id"], sha])
     with store.transaction() as c:
         store.assert_lease(c, job)
         c.execute("INSERT INTO ingest_artifacts VALUES (?,?,?,?,?) ON CONFLICT(sha) DO NOTHING",
-                  (sha, path, len(payload), media_type, store.now()))
+                  (sha, path, len(payload), formats.MEDIA_TYPES[kind], store.now()))
         c.execute("INSERT INTO ingest_versions VALUES (?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
                   (version_id, source["id"], sha, source["metadata_json"], store.now()))
         if _listing_evidence(metadata):
@@ -272,23 +271,46 @@ def fetch_job(job, processor, fetch=None):
     return version_id
 
 
+def extraction_pdf(job, sha, content):
+    """Cache a rendering separately; the source version always points to original bytes."""
+    kind = formats.identify(content)
+    if kind in {'pdf', 'xlsx'}:
+        return content, None
+    with store.transaction() as c:
+        cached = c.execute('SELECT pdf_sha FROM ingest_renditions WHERE source_sha=? AND converter=?',
+                           (sha, formats.VERSION)).fetchone()
+    if cached:
+        pdf_sha = cached['pdf_sha']
+        rendered = read_artifact(pdf_sha)
+    else:
+        rendered = formats.to_pdf(content, kind)
+        pdf_sha, path = archive(rendered)
+        with store.transaction() as c:
+            store.assert_lease(c, job)
+            c.execute('INSERT INTO ingest_artifacts VALUES (?,?,?,?,?) ON CONFLICT(sha) DO NOTHING',
+                      (pdf_sha, path, len(rendered), 'application/pdf', store.now()))
+            c.execute('INSERT INTO ingest_renditions VALUES (?,?,?,?) ON CONFLICT(source_sha,converter) DO NOTHING',
+                      (sha, formats.VERSION, pdf_sha, store.now()))
+            pdf_sha = c.execute('SELECT pdf_sha FROM ingest_renditions WHERE source_sha=? AND converter=?',
+                                (sha, formats.VERSION)).fetchone()['pdf_sha']
+        rendered = read_artifact(pdf_sha)
+    return rendered, {'source_format': kind, 'source_sha256': sha, 'pdf_sha256': pdf_sha,
+                      'converter': formats.VERSION}
+
+
 def issuer_artifact(ticker, sha):
     """Only serve bytes linked to a published snapshot for this issuer."""
-    import reports_catalog as rc
     import catalogue.filings as catalogue_filings
-    import catalogue.storage as catalogue_storage
-    import dbx
-    c = catalogue_storage.get_catalog_conn()
+    c = store.connect()
     try:
-        if "ingest_snapshots" not in dbx.tables(c):
-            return None
         org_id = catalogue_filings._issuer_org(c, ticker.upper())
         if not org_id:
             return None
         row = c.execute("SELECT 1 FROM ingest_snapshots p JOIN ingest_candidates x ON x.id=p.candidate_id "
-                        "JOIN ingest_versions v ON v.id=x.version_id WHERE v.sha=? "
+                        "JOIN ingest_versions v ON v.id=x.version_id "
+                        "LEFT JOIN ingest_renditions d ON d.source_sha=v.sha WHERE (v.sha=? OR d.pdf_sha=?) "
                         "AND p.org_id=? LIMIT 1",
-                        (sha, org_id)).fetchone()
+                        (sha, sha, org_id)).fetchone()
     finally:
         c.close()
     return read_artifact(sha) if row else None

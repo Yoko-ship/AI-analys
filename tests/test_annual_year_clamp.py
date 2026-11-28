@@ -1,19 +1,45 @@
-"""The annual-year clamp on the accounting-report sync path.
+"""Annual periods require source evidence instead of upload-year clamping."""
 
-openinfo stamps many annuals with the upload season's year rather than the
-fiscal year (fleet-wide, most issuers' FY2019 annual is labeled "2020"; several
-carry impossible "FY2026" labels). A period cannot end after the report carrying
-it was published — reports_catalog._effective_annual_year enforces the same
-invariant period_year_quarter already applies on the unified-feed path.
-"""
-
-import reports_catalog as rc
 import catalogue.financial_store as catalogue_financial_store
+import pytest
 import catalogue.sources as catalogue_sources
 import catalogue.storage as catalogue_storage
 import catalogue.sync as catalogue_sync
 import catalogue.periods as catalogue_periods
-import catalogue.sources as catalogue_sources
+import collectors.openinfo.transport as transport
+
+
+@pytest.mark.parametrize("declared,original,expected,basis", [
+    (2025, "2024-12-31", 2024, "reported"),
+    (None, "2024-12-31", 2024, "reported"),
+    (None, None, 2025, "publication_date"),
+])
+def test_sync_reads_original_annual_period_before_assigning_upload_year(tmp_path, monkeypatch, declared, original, expected, basis):
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    monkeypatch.setattr(catalogue_financial_store, '_maybe_seed_financials', lambda *args: None)
+    monkeypatch.setattr(catalogue_sources, '_make_session', lambda: object())
+    monkeypatch.setattr(catalogue_sources, '_fetch_main_results', lambda *args: ([], 'bank'))
+    monkeypatch.setattr(catalogue_sources, '_unified_pdf_id_map', lambda *args: {
+        '362': {'pdf_id': 1234, 'pub_date': '2025-07-03T00:00:00'},
+    })
+    calls = []
+    def fetch(session, path, params=None):
+        calls.append(path)
+        if path == '/reports/bank/annual/362/':
+            return {'id': 362, 'organization': {'id': 30}, 'reporting_year': original}
+        if (params or {}).get('report_type') == 'annual':
+            return [{'id': 362, 'reporting_year': declared}]
+        return []
+    monkeypatch.setattr(catalogue_sources, '_json_get', fetch)
+    monkeypatch.setattr(transport, '_json_get', fetch)
+    result = catalogue_sync.sync_company('SQBN', 'SQB', force=True, org_id='30')
+    assert not result['errors']
+    assert calls.count('/reports/bank/annual/362/') == 1
+    c = catalogue_storage.get_catalog_conn()
+    try:
+        assert [(r['year'], r['period_source']) for r in c.execute("SELECT * FROM catalog_reports WHERE ticker='SQBN'")] == [(expected, basis)]
+    finally:
+        c.close()
 
 
 def test_reviewed_late_annuals_keep_balance_and_income_in_verified_year(tmp_path, monkeypatch):
@@ -44,17 +70,17 @@ def test_reviewed_late_annuals_keep_balance_and_income_in_verified_year(tmp_path
 
 
 class TestEffectiveAnnualYear:
-    def test_an_upload_season_label_clamps_to_the_prior_fiscal_year(self):
+    def test_an_upload_season_label_requires_original_period(self):
         # TRSB's FY2022 annual: labeled 2023, published 2023-05-23.
-        assert catalogue_periods._effective_annual_year(2023, "2023-05-23T15:54:34") == 2022
+        assert catalogue_periods._effective_annual_year(2023, "2023-05-23T15:54:34") is None
 
-    def test_the_universal_fy2019_mislabel_clamps(self):
+    def test_hmkb_upload_season_label_requires_original_period(self):
         # HMKB record 189: labeled 2020, published 2020-10-13 → FY2019.
-        assert catalogue_periods._effective_annual_year(2020, "2020-10-13T18:09:49") == 2019
+        assert catalogue_periods._effective_annual_year(2020, "2020-10-13T18:09:49") is None
 
-    def test_an_impossible_future_label_clamps(self):
+    def test_biok_future_label_requires_original_period(self):
         # BIOK record 6007: labeled 2026, published 2026-07-07 → FY2025.
-        assert catalogue_periods._effective_annual_year(2026, "2026-07-07T11:07:17") == 2025
+        assert catalogue_periods._effective_annual_year(2026, "2026-07-07T11:07:17") is None
 
     def test_a_late_filing_keeps_its_earlier_label(self):
         # AGMKP filed its FY2021 annual in 2023; the label is correct and a

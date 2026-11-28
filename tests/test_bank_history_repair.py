@@ -363,7 +363,7 @@ def test_known_quarter_without_workbook_link_is_recovered_then_skipped(catalog, 
         "excel_url": url, "title": "Bank Q1",
     }])
     calls = []
-    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *args: calls.append(args[-1]) or {"ok": True})
+    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *args: calls.append(args[-1]) or {"ok": True, "reporting_date": "2023-03-31"})
     monkeypatch.setattr(catalogue_parsing, "compute_financial_ratios", lambda *args: {"source_values": {"revenue": 1000}})
     monkeypatch.setattr(catalogue_refresh, "_register_parse", lambda *args: None)
     first = catalogue_history.harvest_historical_quarters("BANK", session=object(), pace=0)

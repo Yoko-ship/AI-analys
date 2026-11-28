@@ -7,7 +7,9 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v16'
+from . import statement_dates
+
+VERSION = 'statement-columns-v17'
 
 
 def compact(value):
@@ -225,6 +227,12 @@ def currency(text):
 def columns(header):
     """Use statement column headers, never the largest year on a cover/opinion."""
     lines = header.splitlines()
+    heading = next((i for i, line in enumerate(lines) if section_kind(line)), 0)
+    header = '\n'.join(lines[heading:])
+    header = statement_dates.expand(header)
+    if header is None:
+        return []
+    lines = header.splitlines()
     # A wrapped column may print its year one row below the neighboring
     # complete date. Resolve the date cells as a group before choosing a
     # year row; otherwise the final lone year can hide the primary column.
@@ -316,6 +324,9 @@ def columns(header):
 
 def flow_start(text, year, end, *, column_index=None, column_count=None):
     """Retain non-calendar and standalone-quarter evidence instead of relabeling it."""
+    text = statement_dates.expand(text)
+    if text is None:
+        return None
     start = re.search(r'(?:\bfrom\b|\bс\b)\s*(\d{1,2})\s*(' + '|'.join(START_MONTHS) + r')\s*(20\d{2})', text, re.I)
     if start:
         # A single explicit inaugural start date cannot establish the start
@@ -358,8 +369,9 @@ def report_flow_contexts(pages):
     for number, text in sorted(pages.items()):
         if sum(row_label(line) is not None for line in statement_lines(text)) >= 3:
             break  # Never borrow a duration from notes or another statement.
+        dated_text = statement_dates.expand(text)
         dates = {(int(m['year']), f"{m['year']}-{MONTHS[m['month'].lower()]:02d}-{int(m['day']):02d}")
-                 for m in DATE.finditer(text)}
+                 for m in DATE.finditer(dated_text or '')}
         if not is_ifrs(text) or len(dates) != 1:
             continue
         year, end = next(iter(dates))

@@ -9,11 +9,12 @@ from . import documents, extract, publication, store
 log = logging.getLogger(__name__)
 
 
-def run(*, max_jobs=4, ocr=False, fetch=None, stages=("FETCH", "EXTRACT"), org_ids=None, include_coverage=True):
+def run(*, max_jobs=4, ocr=False, fetch=None, stages=("FETCH", "EXTRACT"), org_ids=None, include_coverage=True, source_id=None):
     outcomes = []
     processor = extract.processor_version()
     for _ in range(max_jobs):
-        job = store.claim(processor=processor, stages=stages, org_ids=org_ids)
+        scope = {'source_id': source_id} if source_id is not None else {}
+        job = store.claim(processor=processor, stages=stages, org_ids=org_ids, **scope)
         if not job:
             break
         try:

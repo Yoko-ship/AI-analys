@@ -151,6 +151,7 @@ const CATALOG_TERMINAL_TEXT = {
     noFilteredReports: "По выбранным фильтрам отчётов нет",
     annualDetail: "12 месяцев",
     quarterDetail: (q) => `${q * 3} месяцев`,
+    publicationPeriod: "По дате публикации",
   },
   en: {
     eyebrow: "Disclosures and financial reporting",
@@ -180,6 +181,7 @@ const CATALOG_TERMINAL_TEXT = {
     noFilteredReports: "No reports match the selected filters",
     annualDetail: "12 months",
     quarterDetail: (q) => `${q * 3} months`,
+    publicationPeriod: "Based on publication date",
   },
   uz: {
     eyebrow: "Oshkorotlar va moliyaviy hisobotlar",
@@ -209,6 +211,7 @@ const CATALOG_TERMINAL_TEXT = {
     noFilteredReports: "Tanlangan filtrlarga mos hisobot yo'q",
     annualDetail: "12 oy",
     quarterDetail: (q) => `${q * 3} oy`,
+    publicationPeriod: "E’lon sanasi asosida",
   },
 };
 
@@ -1162,7 +1165,7 @@ function CatalogScreen({ language, token, addToast, initialStatus, user }) {
                                   onClick={() => handleSelectReport(report)}
                                 >
                                   <strong>{report.year} · {report.quarter ? `Q${report.quarter}` : periodsObj.annual}</strong>
-                                  <small>{report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
+                                  <small>{report.period_source === "publication_date" ? catalogTerminalText(lang, "publicationPeriod") : report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
                                 </button>
                               </td>
                               <td><span className={`catalog-report-type type-${report.form.toLowerCase()}`} title={formsObj[report.form] || report.form}>

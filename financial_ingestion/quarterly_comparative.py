@@ -143,30 +143,36 @@ def _structured_values(metrics, detail):
 
 
 def discover_record(ticker, org_id, record, *, publish=False):
-    """A failed export still has a structured filing with an explicit period."""
+    """Recover a structured filing and retain how its period was established."""
     import openinfo_reconcile as oi
     import catalogue.filings as filings
-    import catalogue.periods as periods
 
     org_type, object_id = _form_type(record.get("org_type")), str(record["accounting_id"])
     if org_type not in oi.ORG_TYPES or not object_id.isdigit():
         raise ValueError("Unsupported structured filing")
     detail = _quarter_detail(oi, org_id, org_type, object_id)
-    year, quarter = oi.period_year_quarter(detail.get("reporting_year"), "quarter",
-        pub_date=record["pub_date"], quarter_no=detail.get("quarter_no"))
-    if not year or not quarter or periods._is_future_period(year, quarter):
+    if str(detail.get("id")) != object_id or _form_type(detail.get("org_type")) != org_type:
+        raise ValueError("Structured filing identity does not match discovery")
+    from nsbu_periods import resolve_period, OPENINFO_QUARTERS
+    period = resolve_period(detail.get("reporting_year"), "quarter",
+        published_at=record["pub_date"], quarter=OPENINFO_QUARTERS.get(str(detail.get("quarter_no") or "")))
+    if period is None:
         raise ValueError("Structured filing has no completed reporting period")
+    year, quarter = period["year"], period["quarter"]
     values = _structured_values(oi.extract_metrics(detail), detail)
     if not values:
         raise ValueError("Structured filing has no usable financial figures")
     c = _connect()
     try:
-        held = c.execute("SELECT published_at FROM catalog_reports WHERE ticker=? AND report_form='NSBU' AND year=? AND quarter=?",
+        held = c.execute("SELECT published_at,period_source FROM catalog_reports WHERE ticker=? AND report_form='NSBU' AND year=? AND quarter=?",
                          (ticker, year, quarter)).fetchone()
+        if held and period["period_source"] == "publication_date" and held["period_source"] != "publication_date":
+            return None
         if held and str(held["published_at"] or "") >= record["pub_date"]:
             return None
         with c:
             filings._upsert_report(c, ticker, report_form="NSBU", period_type="quarter", year=year, quarter=quarter,
+                period_source=period["period_source"],
                 title=record.get("title"), published_at=record["pub_date"],
                 pdf_url=f"https://openinfo.uz/ru/reports/to_pdf{record['pdf_id']}/" if record.get("pdf_id") else None,
                 excel_url=record["excel_url"], excel_url_form1=record["excel_url"],
@@ -175,10 +181,11 @@ def discover_record(ticker, org_id, record, *, publish=False):
         c.close()
     if publish:
         source = {"kind": "structured", "source_period": f"{year}Q{quarter}", "org_id": str(org_id),
+                  "period_source": period["period_source"],
                   "source_url": f"https://openinfo.uz/reports/{org_type}/quarter/{object_id}", "pub_date": record["pub_date"],
                   "parser_version": _parser_version(oi)}
         _save([ticker], year, quarter, values, source, structured=True, statement=microfinance.filed_statement(detail, org_id, year, quarter))
-    return {"ticker": ticker, "year": year, "quarter": quarter, **values}
+    return {"ticker": ticker, **period, **values}
 
 
 def backfill(org_id, aliases, journal=None):
