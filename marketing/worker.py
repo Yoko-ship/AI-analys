@@ -22,6 +22,7 @@ def tick(*, model=None, transport=None, fetch=None, now=None):
     delivery.recover_inflight(now)
     media.recover(now)
     confirmation_work = meta_confirmation.run_one(now)
+    telegram_news.upgrade(now)
     telegram_news.ensure_source(now)
     source_work = sources.collect_one(fetch if fetch is not None else source_adapters.fetch, now)
     model = model if model is not None else model_runtime.get_model()

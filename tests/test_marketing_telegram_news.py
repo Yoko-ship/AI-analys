@@ -69,13 +69,56 @@ def test_default_news_checks_connection_and_processing_pause(monkeypatch):
     assert rows('source') == []
 
 
-def test_news_review_and_generation_publish_once_without_per_task_setup(monkeypatch):
+def test_previously_connected_channel_adopts_defaults_once_without_reconnecting(monkeypatch):
+    from marketing import telegram_news
+    saved = connected(monkeypatch)
+    with store.connection(write=True) as c:
+        legacy = {key: value for key, value in saved.items() if key != 'automatic_news'}
+        store.put(c, 'account', legacy, actor=OWNER, action='legacy_fixture', expected_version=saved['version'])
+    assert telegram_news.upgrade(NOW)
+    upgraded, = rows('account')
+    assert upgraded['automatic_news'] and upgraded['valid_until'] is None
+    assert channels.setup(upgraded)['ready']
+    assert upgraded['mode'] == saved['mode']
+    assert not telegram_news.upgrade(NOW + timedelta(minutes=1))
+    permissions.save_account(OWNER, upgraded['id'],
+        {key: value for key, value in {**upgraded, 'automatic_news': False, 'valid_until': saved['valid_until']}.items()
+         if key in permissions.Account.model_fields}, upgraded['version'])
+    assert not telegram_news.upgrade(NOW + timedelta(minutes=2))
+    assert rows('account')[0]['automatic_news'] is False
+
+
+@pytest.mark.parametrize('blocked_by', ['paused', 'expired', 'credential', 'processing'])
+def test_legacy_upgrade_respects_stopped_or_unverified_channels(monkeypatch, blocked_by):
+    from marketing import telegram_news
+    saved = connected(monkeypatch)
+    with store.connection(write=True) as c:
+        legacy = {key: value for key, value in saved.items() if key != 'automatic_news'}
+        if blocked_by == 'paused':
+            legacy['paused'] = True
+        if blocked_by == 'expired':
+            legacy['valid_until'] = NOW.isoformat()
+        store.put(c, 'account', legacy, actor=OWNER, action='legacy_fixture', expected_version=saved['version'])
+        if blocked_by == 'processing':
+            store.put(c, 'settings', {'id': 'pause', 'processing': True}, actor=OWNER, action='pause', expected_version=0)
+    if blocked_by == 'credential':
+        monkeypatch.setenv('MARKETING_TELEGRAM_BOT_TOKEN', 'rotated')
+    assert not telegram_news.upgrade(NOW)
+    assert 'automatic_news' not in rows('account')[0]
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_news_review_and_generation_publish_once_without_per_task_setup(monkeypatch, legacy):
     import json
     from marketing import news_review, worker
     from test_marketing_agents import output
     peer = TelegramPeer(monkeypatch)
     saved = account(automatic_news=True, valid_until=None)
-    channels.probe(OWNER, saved['id'], saved['version'], NOW)
+    saved = channels.probe(OWNER, saved['id'], saved['version'], NOW)
+    if legacy:
+        with store.connection(write=True) as c:
+            store.put(c, 'account', {key: value for key, value in saved.items() if key != 'automatic_news'},
+                      actor=OWNER, action='legacy_fixture', expected_version=saved['version'])
     quote = 'S&P повысило рейтинг с BB- до BB. Прогноз стабильный.'
     monkeypatch.setattr(news_review, 'read_original', lambda url: 'Опубликована новость. ' + quote)
     class Team:
@@ -206,4 +249,3 @@ def test_news_review_requires_support_and_an_exact_publisher_excerpt(monkeypatch
         assert original['verification_reason'].startswith('Publisher text checked')
         assert original['data']['reported_excerpt'] == quote
     assert telegram_news.run_one(NOW) is verified
-

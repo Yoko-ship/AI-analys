@@ -1495,6 +1495,24 @@ jobs:
           if str(bot.get('id')) != sys.argv[1] or bot.get('is_bot') is not True:
               raise SystemExit('The running service has an unexpected Telegram bot identity')
           print(json.dumps({'marketing_telegram_configured': True, 'bot_username': bot['username']}))
+          from collections import Counter
+          from marketing import channels, model_runtime, store, telegram_news
+          with store.connection() as c:
+              accounts = [a for a in store.list_items(c, 'account') if a['platform'] == 'telegram']
+              tasks = store.list_items(c, 'task')
+              source = store.get(c, 'source', telegram_news.SOURCE_ID, required=False)
+              worker = store.get(c, 'runtime', 'worker', required=False) or {}
+              print(json.dumps({
+                  'telegram_accounts': [{**{k: a.get(k) for k in ('id', 'mode', 'automatic_news', 'paused', 'valid_until')},
+                                         'connected': channels.setup(a)['ready']} for a in accounts],
+                  'news_source_status': source.get('status') if source else None,
+                  'worker_last_completed_at': worker.get('last_completed_at'),
+                  'model': {k: model_runtime.status()[k] for k in ('provider', 'model', 'configured')},
+                  'tasks': dict(Counter(t['status'] for t in tasks)),
+                  'automatic_news_tasks': dict(Counter(t['status'] for t in tasks if (t.get('editorial') or {}).get('kind') == 'telegram')),
+                  'news_reviews': dict(Counter(r['status'] for r in store.list_items(c, 'news_review'))),
+                  'publications': dict(Counter(p['status'] for p in store.list_items(c, 'delivery'))),
+              }))
           PY
 
   verify-production-market:

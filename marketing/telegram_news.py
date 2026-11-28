@@ -27,13 +27,28 @@ def connect(actor, channel, expected_version, now, account_id=None):
     return channels.probe(actor, saved['id'], saved['version'], now)
 
 
-def accounts(c, now):
+def _connected(c, now):
     if (s.get(c, 'settings', 'pause', required=False) or {}).get('processing'):
         return []
-    return [a for a in s.list_items(c, 'account') if a['platform'] == 'telegram' and a.get('automatic_news')
+    return [a for a in s.list_items(c, 'account') if a['platform'] == 'telegram'
             and not a['paused'] and 'news' in a['rubrics'] and 'post' in a['formats'] and a['languages']
             and (not a.get('valid_until') or timestamp(a['valid_until']) > now)
             and channels.setup(a, now, c)['ready']]
+
+
+def upgrade(now):
+    changed = False
+    with s.connection(write=True) as c:
+        for account in _connected(c, now):
+            if 'automatic_news' not in account:
+                s.put(c, 'account', {**account, 'automatic_news': True, 'valid_until': None},
+                      actor=ACTOR, action='telegram_defaults_adopted', expected_version=account['version'])
+                changed = True
+    return changed
+
+
+def accounts(c, now):
+    return [a for a in _connected(c, now) if a.get('automatic_news')]
 
 
 def ensure_source(now):
