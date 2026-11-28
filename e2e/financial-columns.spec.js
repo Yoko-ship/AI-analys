@@ -1204,6 +1204,12 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`UZMK shows 
   await expect(diagram).toContainText('5,299.31');
   await expect(warning).toHaveCount(0);
   expect(requests[0].searchParams.get('from_year')).toBe('2020');
+  await page.getByRole('button', {name: 'From 2015', exact: true}).click();
+  await expect.poll(() => requests.at(-1).searchParams.get('from_year')).toBe('2015');
+  await expect(period.getByRole('button', {name: '2015', exact: true})).toHaveCount(1);
+  await expect(terminal.getByRole('link', {name: 'CSV', exact: true})).toHaveAttribute('href', /from_year=2015/);
+  await page.getByRole('button', {name: 'From 2020', exact: true}).click();
+  await expect(period.getByRole('button', {name: '2015', exact: true})).toHaveCount(0);
   await terminal.getByRole('button', {name: 'Quarters', exact: true}).click();
   await period.scrollIntoViewIfNeeded();
   await expect(period.getByRole('button', {name: '2026 Q2', exact: true})).toBeInViewport();

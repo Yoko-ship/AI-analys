@@ -119,11 +119,12 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   const [collapsed, setCollapsed] = React.useState({});
   const [balanceSelection, setBalanceSelection] = React.useState(null);
   React.useEffect(() => { setPassport(null); }, [statement]);
+  const historyStart = fromYear ?? 2015;
   const params = new URLSearchParams({ form: standard, scope, freq, view: 'template',
-    include_sources: 'false', include_ratios: String(view === 'ratios'), from_year: String(fromYear) });
+    include_sources: 'false', include_ratios: String(view === 'ratios'), from_year: String(historyStart) });
   const exportParams = new URLSearchParams({ form: standard, scope, freq, view: view === 'summary' ? 'overview' : 'template',
     statement: ['summary', 'original'].includes(view) ? statement : 'all',
-    layout: 'table', lang, tab: view, from_year: String(fromYear), query: showBalancePie ? '' : query, v: exportVersion });
+    layout: 'table', lang, tab: view, from_year: String(historyStart), query: showBalancePie ? '' : query, v: exportVersion });
   const url = `/api/company/${encodeURIComponent(ticker)}/financials/columns?${params}`;
   const loadRef = React.useRef(onLoad); loadRef.current = onLoad;
   React.useEffect(() => {
@@ -150,7 +151,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
     const notation = maximumFractionDigits > 20 && number !== 0 && Math.abs(number) < 1e-20 ? 'scientific' : 'standard';
     return number.toLocaleString(locale, { notation, maximumFractionDigits: Math.min(20, maximumFractionDigits) });
   };
-  const columns = (data?.columns || []).filter(c => Number(c.end.slice(0,4)) >= fromYear);
+  const columns = (data?.columns || []).filter(c => Number(c.end.slice(0,4)) >= historyStart);
   const balancePeriods = showBalancePie ? columns.filter(column => column.basis !== 'ttm') : [];
   const balancePeriod = balancePeriods.find(column => balanceSelection?.url === url && column.key === balanceSelection.key) ?? balancePeriods.at(-1);
   const visibleRows = view === 'ratios' ? data?.ratios : view === 'summary' ? data?.overview_rows ?? data?.rows : data?.rows;
