@@ -7,7 +7,7 @@ import unicodedata
 from pydantic import Field, field_validator
 
 from . import store as s
-from .checks import public_url
+from .url_policy import public_url
 from .errors import MarketingError, require_owner
 from .models import Evidence, Input
 from .permissions import timestamp

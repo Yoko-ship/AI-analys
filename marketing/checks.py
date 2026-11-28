@@ -3,16 +3,10 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from calendar import monthrange
 import re
-from urllib.parse import urlparse
 
 from .permissions import TASHKENT, timestamp
+from .url_policy import public_url
 from . import dividend_checks, occasions, rubric_checks
-
-
-def public_url(value, *, uzstock=False):
-    parsed = urlparse(value)
-    return (parsed.scheme == "https" and bool(parsed.hostname) and not parsed.username
-            and not parsed.password and (not uzstock or parsed.hostname in {"uzstock.uz", "www.uzstock.uz"}))
 
 
 def numbers(text):

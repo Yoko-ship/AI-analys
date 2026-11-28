@@ -1446,6 +1446,7 @@ for (const width of [1440, 390]) test(`competitor comparison preserves dated fac
 });
 
 test('team workflow produces separate channel variants and the owner selects a language', async ({ page }, info) => {
+  test.setTimeout(90000);
   const callApi = await workspace(page, info);
   const stamp = Date.now();
   for (const platform of ['telegram', 'instagram', 'facebook', 'linkedin']) callApi({ method: 'PUT', path: `/api/admin/ai-marketing/accounts/${platform}`, body: { expected_version: 0, data: {

@@ -1,8 +1,23 @@
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 
 import api
 from server.auth import access
+
+
+@pytest.mark.parametrize('module', ['checks', 'sources', 'content', 'worker'])
+def test_marketing_modules_import_without_composition_root(module):
+    result = subprocess.run(
+        [sys.executable, '-c', f'import marketing.{module}'],
+        cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_ai_workspace_and_existing_editorial_workspace_keep_separate_state(monkeypatch, tmp_path):

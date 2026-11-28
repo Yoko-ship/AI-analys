@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from . import store as s
-from .checks import public_url
+from .url_policy import public_url
 from .errors import MarketingError, require_owner
 from .models import Input
 from .permissions import timestamp
