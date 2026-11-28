@@ -7,7 +7,7 @@ import re
 import requests
 from PIL import Image
 
-from . import media, publishing, sources, store as s
+from . import media, publication_links, publishing, sources, store as s
 from .delivery import PermanentRejection, TemporaryRejection
 
 FORMATS = ["post", "image", "carousel", "video"]
@@ -71,7 +71,7 @@ class Telegram:
         with s.connection() as c:
             evidence = {key: sources.current_evidence(c, key) for key in item["evidence_ids"]}
             assets = [s.get(c, "asset", ref["id"]) for ref in item["assets"]]
-        copy = publishing.text(item, evidence)
+        copy = publishing.payload_text(account, item, evidence)
         if publishing.check(account, item, evidence):
             raise PermanentRejection("Telegram content limits require a revision")
         data = {"chat_id": account["external_id"]}
@@ -81,6 +81,9 @@ class Telegram:
                 raise PermanentRejection("Choose a media format for attachments")
             method = "sendMessage"
             data["text"] = copy
+            if publication_links.valid_destination(item['destination_url']):
+                data['link_preview_options'] = json.dumps({
+                    'url': publication_links.destination(item), 'prefer_large_media': True, 'show_above_text': True})
         else:
             expected = (2 <= len(assets) <= 10) if item["format"] == "carousel" else len(assets) == 1
             if not expected:

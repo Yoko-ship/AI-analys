@@ -34,3 +34,32 @@ for (const width of [1440, 390]) test(`Telegram connects without campaign config
   await page.screenshot({ path: info.outputPath(`telegram-connected-${width}.png`) });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+for (const width of [1440, 390]) test(`Telegram branded news preview at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 950 });
+  const api = await workspace(page, info), base = '/api/admin/ai-marketing', now = Date.now();
+  api({ method: 'TELEGRAM_CONFIGURE' });
+  expect(api({ method: 'POST', path: `${base}/telegram/connect`, body: { channel: '-100123', expected_version: 0 } }).status).toBe(200);
+  const original = 'https://www.uzdaily.uz/ru/fitch-podtverdila-reiting-sqb-insurance-na-urovne-bb';
+  expect(api({ method: 'PUT', path: `${base}/evidence/rating`, body: { expected_version: 0, data: {
+    title: 'SQB Insurance', url: original, publisher: 'UzDaily.uz', rights: 'link_and_excerpt', status: 'verified',
+    published_at: new Date(now - 3600000).toISOString(), retrieved_at: new Date(now).toISOString(),
+    expires_at: new Date(now + 86400000).toISOString(), excerpt: 'Fitch подтвердило рейтинг BB.',
+  } } }).status).toBe(200);
+  expect(api({ method: 'POST', path: `${base}/candidates`, body: {
+    event_id: 'news:10528', account_id: 'telegram', mode: 'draft', rubric: 'news', language: 'ru',
+    title: 'Рейтинг SQB Insurance', body: `По сообщению UzDaily.uz, Fitch подтвердило рейтинг BB.\n\nИсточник: UzDaily.uz — ${original}`,
+    evidence_ids: ['rating'], destination_url: 'https://uzstock.uz/news/10528', expires_at: new Date(now + 86400000).toISOString(),
+  } }).status).toBe(200);
+  await page.reload();
+  await page.getByRole('button', { name: 'Контент и очередь', exact: true }).click();
+  const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Рейтинг SQB Insurance', exact: true }) })
+    .filter({ has: page.getByRole('button', { name: 'Текст для отправки', exact: true }) });
+  await card.getByRole('button', { name: 'Текст для отправки', exact: true }).click();
+  const preview = page.getByRole('dialog').locator('.mkt-post-preview');
+  await expect(preview).toContainText('Источник: UZStock');
+  await expect(preview).toContainText('https://uzstock.uz/news/10528');
+  await expect(preview).not.toContainText('UzDaily');
+  await expect(preview).not.toContainText('uzdaily.uz');
+  await page.getByRole('dialog').screenshot({ path: info.outputPath(`telegram-branding-${width}.png`) });
+});

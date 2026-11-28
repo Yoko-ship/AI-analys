@@ -30,8 +30,26 @@ def media_only(account, item):
 def payload_text(account, item, evidence):
     if media_only(account, item):
         return ""
+    if (account and account['platform'] == 'telegram' and account.get('automatic_news')
+            and item['rubric'] == 'news' and publication_links.valid_destination(item['destination_url'])):
+        return telegram_news_text(item, evidence)
     copy = text(item, evidence)
     return copy + "\n\n" + instagram_links.caption(item) if account and account["platform"] == "instagram" and instagram_links.caption(item) else copy
+
+
+def telegram_news_text(item, evidence):
+    originals = {ev['url'] for ev in evidence.values() if ev and ev.get('url')}
+    publishers = {ev['publisher'] for ev in evidence.values() if ev and ev.get('publisher')}
+    credit = r'^\s*(?:источник(?:и)?|первоисточники|(?:original )?sources?|(?:birlamchi )?manba(?:lar)?)\s*:'
+    lines = [line for line in item['body'].splitlines()
+             if not re.match(credit, line, re.I) and line.strip() not in originals | publishers]
+    body = '\n'.join(lines).strip()
+    for publisher in publishers:
+        name = re.escape(publisher)
+        body = re.sub(r'(?im)^(?:По сообщению|According to)\s+' + name + r'\s*,\s*', '', body)
+        body = re.sub(r'(?im)^' + name + r'\s+xabariga ko[‘’\x27]ra\s*,\s*', '', body)
+    label = {'ru': 'Источник', 'uz': 'Manba', 'en': 'Source'}[item['language']]
+    return text({**item, 'body': body + '\n\n' + label + ': UZStock'}, {})
 
 
 def check(account, item, evidence):
@@ -73,7 +91,7 @@ def check(account, item, evidence):
         return ["Telegram albums require between two and ten rendered files"]
     limit = 4096 if item["format"] == "post" else 1024
     # UTF-16 units conservatively account for Telegram's entity offsets and emoji.
-    if len(text(item, evidence).encode("utf-16-le")) // 2 > limit:
+    if len(payload_text(account, item, evidence).encode("utf-16-le")) // 2 > limit:
         return [f"Telegram outgoing text including original links exceeds {limit} characters"]
     return []
 

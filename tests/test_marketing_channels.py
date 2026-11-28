@@ -131,6 +131,36 @@ def test_worker_uses_the_configured_adapter_and_saves_confirmed_message_identity
         assert TOKEN not in json.dumps(store.history(c, "account", saved["id"]))
 
 
+@pytest.mark.parametrize('language,lead,label', [
+    ('ru', 'По сообщению UzDaily.uz, ', 'Источник'),
+    ('uz', 'UzDaily.uz xabariga ko‘ra, ', 'Manba'),
+    ('en', 'According to UzDaily.uz, ', 'Source'),
+])
+def test_automatic_news_uses_uzstock_source_and_large_preview_above_text(monkeypatch, language, lead, label):
+    from marketing import channels, publishing
+    peer = TelegramPeer(monkeypatch)
+    saved = account(automatic_news=True, languages=['ru', 'uz', 'en'])
+    channels.probe(OWNER, saved['id'], saved['version'], NOW)
+    original = evidence(url='https://www.uzdaily.uz/ru/fitch-podtverdila-reiting-sqb-insurance-na-urovne-bb',
+                        publisher='UzDaily.uz', entity='SQB Insurance', excerpt='Fitch подтвердило рейтинг BB.', data={}, units={})
+    item = candidate(event='news:10528', entity='SQB Insurance', claims=[], language=language, title='Рейтинг SQB Insurance — BB',
+                     body=lead + 'Fitch подтвердило рейтинг BB.\n\n' + label + ': UzDaily.uz — ' + original['url'],
+                     destination_url='https://uzstock.uz/news/10528')
+    assert content.check_candidate(item['id'], NOW)['status'] == 'ready'
+    delivery.schedule(item['id'], NOW)
+    assert worker.tick(now=NOW)['delivery_work']
+    sent, = [data for method, data, _ in peer.calls if method == 'sendMessage']
+    assert 'UzDaily' not in sent['text'] and original['url'] not in sent['text']
+    assert label + ': UZStock' in sent['text'] and 'Fitch подтвердило рейтинг BB.' in sent['text']
+    options = json.loads(sent['link_preview_options'])
+    assert options['show_above_text'] is True and options['prefer_large_media'] is True
+    assert options['url'].startswith('https://uzstock.uz/news/10528')
+    with store.connection() as c:
+        current = store.get(c, 'candidate', item['id'])
+        assert publishing.preview(c, current)['text'] == sent['text']
+        assert store.get(c, 'evidence', original['id'])['url'] == original['url']
+
+
 def test_rotating_a_token_invalidates_the_probe_without_consuming_a_send(monkeypatch):
     from marketing import channels
     peer, saved = connected(monkeypatch)
