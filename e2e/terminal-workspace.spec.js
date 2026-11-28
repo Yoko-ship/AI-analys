@@ -35,6 +35,32 @@ async function run(page, text) {
   await page.locator('.terminal-command').getByRole("combobox").press("Enter");
 }
 
+for (const failed of [false, true]) test(`RAT loads HMKB ratios while analytics is pending or fails (${failed})`, async ({page}, testInfo) => {
+  await fixture(page, [{ticker:'HMKB',company_name:'Hamkorbank',sector:'finance',total_count:6}]);
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  await page.route('**/api/terminal/issuer/HMKB/analytics?*', async route => {
+    await pending;
+    await route.fulfill({status:failed ? 503 : 200,json:failed ? {detail:'unavailable'} :
+      {ok:true,snapshot:{period:'2025',kind:'bank',roe:20},growth:[],quarters:{rows:[]}}});
+  });
+  await page.route('**/api/v1/issuers/HMKB/ai-report?*', route => route.fulfill({json:{
+    status:'available',period:'2026Q2',scope:'separate',ratios:[
+      {metric_code:'nim',name_ru:'Чистая процентная маржа',value:4.2,unit:'percent'}],sources:[]}}));
+  try {
+    await run(page, 'HMKB RAT');
+    await expect(page.locator('.terminal-sector-metrics')).toContainText('Чистая процентная маржа');
+    await page.screenshot({path:testInfo.outputPath('ratios-pending-analytics.png'),fullPage:true});
+  } finally { release(); }
+  if (failed) await expect(page.locator('.terminal-analytics [role="alert"]')).toBeVisible();
+  else await expect(page.locator('.terminal-annual-ratios')).toContainText('20');
+  await expect(page.locator('.terminal-sector-metrics')).toContainText('4,2');
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath('ratios-independent-mobile.png'),fullPage:true});
+});
+
+
 async function chooseCurrency(page, name) {
   await page.getByRole('combobox', {name: 'Валюта', exact: true}).click();
   await page.getByRole('option', {name, exact: true}).click();

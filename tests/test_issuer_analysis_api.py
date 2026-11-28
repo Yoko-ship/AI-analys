@@ -114,6 +114,8 @@ def client(monkeypatch, tmp_path) -> TestClient:
     monkeypatch.setattr(issuer_sources, 'get_all_ratios', lambda: ratios)
     monkeypatch.setattr(issuer_sources, 'get_all_financials', lambda form="NSBU": latest)
     monkeypatch.setattr(issuer_sources, 'fetch_report_excel_data', excel_data)
+    import catalogue.sources
+    monkeypatch.setattr(catalogue.sources, 'cached_report_excel_data', excel_data)
     monkeypatch.setattr(issuer_sources, 'get_all_quotes', lambda: quotes)
     monkeypatch.setattr(issuer_sources, 'get_all_trade_stats', lambda: trades)
     monkeypatch.setattr(subject.provenance, "bond_references", lambda: {})
@@ -131,6 +133,15 @@ def client(monkeypatch, tmp_path) -> TestClient:
 
 def _observation(body, metric):
     return next(item for item in body["observations"] if item["metric"] == metric)
+
+
+def test_insurance_public_report_uses_saved_workbooks_throughout(client, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail('Public insurance report attempted a source download')
+    monkeypatch.setattr(issuer_sources, 'fetch_report_excel_data', forbidden)
+    response = client.get('/api/v1/issuers/INS/ai-report?standard=nsbu&lang=ru')
+    assert response.status_code == 200
+    assert response.json()['status'] == 'available'
 
 
 @pytest.mark.parametrize("failing_language", ["ru", "uz"])

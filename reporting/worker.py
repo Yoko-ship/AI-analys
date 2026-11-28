@@ -3,6 +3,7 @@ from catalogue import filings, sources
 import issuer_financials as financials
 import sector_report_service
 import re
+import json
 from . import store
 
 
@@ -34,10 +35,16 @@ def run_pending(limit=10):
                     store.finish_job(row['id'], 'retry' if attempts < 4 else 'incident', attempts, 'SOURCE_REFRESH_FAILED')
                 continue
             issuer = financials.resolve_issuer(row["ticker"])
-            annual = re.fullmatch(r'terminal-bank-annual:(\d{4}):\d{4}-\d{2}-\d{2}', row.get('source_event', ''))
-            # Populate annual source detail without replacing the latest public narrative.
-            reports = ([sector_report_service.sector_report(issuer, 'nsbu', annual[1], 'separate', 'ru', persist=False)]
-                       if annual else [sector_report_service.sector_report(issuer, "nsbu", None, "separate", lang) for lang in ("ru", "uz")])
+            annual = re.fullmatch(r'terminal-bank-annual:(\d{4}):\d{4}-\d{2}-\d{2}', event)
+            if event.startswith('report-read:'):
+                context = json.loads(event.removeprefix('report-read:'))
+                reports = [sector_report_service.sector_report(
+                    issuer, context['standard'], context['period'], context['scope'], context['lang'])]
+            elif annual:
+                # Annual detail must not replace the latest public narrative.
+                reports = [sector_report_service.sector_report(issuer, 'nsbu', annual[1], 'separate', 'ru', persist=False)]
+            else:
+                reports = [sector_report_service.sector_report(issuer, "nsbu", None, "separate", lang) for lang in ("ru", "uz")]
             refresh_failed = any(r.get('source_refresh_failed') for r in reports)
             retryable = refresh_failed or any(r["status"] == "mapping_failed" for r in reports)
             state = ("retry" if retryable and attempts < 4 else "incident" if retryable

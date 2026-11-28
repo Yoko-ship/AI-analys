@@ -156,16 +156,18 @@ export const AnalyticsScreen = React.memo(function AnalyticsScreen({ticker,form,
       <SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>
     </>:<>
       <SectorMetrics key={ticker+form+scope} ticker={ticker} form={form} scope={scope} lang={lang}/>
+      <State data={data} error={error} lang={lang}>
       <RatioOverview snapshot={snap} form={form} scope={scope} lang={lang}
         metrics={metricsForRows([snap]).filter(([key])=>!["dy","npl"].includes(key)&&(key!=='de'||['industry','non_financial'].includes(snap.kind)))}
         growth={(data?.growth||[]).map(row=>({...row,label:label(row.field,lang)}))}/>
+      </State>
     </>}
-    {!summary&&<>
+    {!summary&&data&&<>
       <BankContext data={data?.cbu} sector={data?.sector} lang={lang}/>
       <QuarterlyMetrics quarters={data?.quarters||{}} lang={lang}/>
     </>}
   </div>;
-  return summary ? content : <State data={data} error={error} lang={lang}>{content}</State>;
+  return content;
 });
 
 export function PeersScreen({ticker,form,scope,lang,onOpen}) {
