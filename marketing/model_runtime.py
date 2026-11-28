@@ -67,7 +67,7 @@ def status():
     if provider == "codex":
         gateway = bool(os.getenv("NEWS_CODEX_GATEWAY_URL", "").strip()
                        and os.getenv("CODEX_GATEWAY_SECRET", "").strip())
-        return {"provider": provider, "model": model or os.getenv("NEWS_CODEX_MODEL", "").strip() or "gpt-6-luna",
+        return {"provider": provider, "model": model or "gpt-6.1-terra",
                 "configured": gateway, "execution": "configured_gateway" if gateway else None,
                 "note": "Uses the news Codex gateway and its saved login; availability is confirmed by a completed task."}
     if provider == "ollama":
@@ -89,7 +89,7 @@ def get_model():
     if config["provider"] == "codex":
         return CodexModel(
             os.environ["NEWS_CODEX_GATEWAY_URL"], os.environ["CODEX_GATEWAY_SECRET"],
-            model=config["model"], effort=os.getenv("NEWS_CODEX_REASONING", "low"),
+            model=config["model"], effort=os.getenv("MARKETING_CODEX_REASONING", "").strip() or "medium",
             fallback_model=os.getenv("NEWS_CODEX_FALLBACK_MODEL", "gpt-6.1-terra").strip() or None,
             timeout=float(os.getenv("NEWS_CODEX_TIMEOUT", "180")), retries=1,
         )

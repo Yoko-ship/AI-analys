@@ -47,21 +47,26 @@ def test_local_model_error_does_not_expose_private_url(monkeypatch):
 def news_codex(monkeypatch):
     monkeypatch.delenv("MARKETING_MODEL_PROVIDER", raising=False)
     monkeypatch.delenv("MARKETING_MODEL", raising=False)
+    monkeypatch.delenv("MARKETING_CODEX_REASONING", raising=False)
     monkeypatch.setenv("NEWS_AI_PROVIDER", "codex")
     monkeypatch.setenv("NEWS_CODEX_GATEWAY_URL", "http://codex.internal:8080")
     monkeypatch.setenv("CODEX_GATEWAY_SECRET", "test-gateway-secret")
     monkeypatch.setenv("NEWS_CODEX_MODEL", "configured-news-model")
-    monkeypatch.setenv("NEWS_CODEX_REASONING", "medium")
+    monkeypatch.setenv("NEWS_CODEX_REASONING", "low")
     monkeypatch.setenv("NEWS_CODEX_FALLBACK_MODEL", "configured-fallback")
     monkeypatch.setenv("NEWS_CODEX_TIMEOUT", "240")
 
 
-def test_marketing_reuses_the_news_codex_gateway(news_codex):
+@pytest.mark.parametrize("empty_override", [None, "", "  "])
+def test_marketing_reuses_the_news_codex_gateway(monkeypatch, news_codex, empty_override):
     from codex_client import CodexGatewayClient
 
+    if empty_override is not None:
+        monkeypatch.setenv("MARKETING_MODEL", empty_override)
+        monkeypatch.setenv("MARKETING_CODEX_REASONING", empty_override)
     status = model_runtime.status()
     assert status["provider"] == "codex"
-    assert status["model"] == "configured-news-model"
+    assert status["model"] == "gpt-6.1-terra"
     assert status["configured"] is True
     assert status["execution"] == "configured_gateway"
     assert "codex.internal" not in json.dumps(status)
@@ -70,7 +75,7 @@ def test_marketing_reuses_the_news_codex_gateway(news_codex):
     assert isinstance(client, CodexGatewayClient)
     assert client.url == "http://codex.internal:8080"
     assert client.secret == "test-gateway-secret"
-    assert client.model == "configured-news-model"
+    assert client.model == "gpt-6.1-terra"
     assert client.effort == "medium"
     assert client.fallback_model == "configured-fallback"
     assert client.model_timeout == 240
@@ -81,7 +86,10 @@ def test_marketing_can_select_codex_and_its_own_model(monkeypatch, news_codex):
     monkeypatch.setenv("NEWS_AI_PROVIDER", "claude")
     monkeypatch.setenv("MARKETING_MODEL_PROVIDER", "codex")
     monkeypatch.setenv("MARKETING_MODEL", "configured-marketing-model")
-    assert model_runtime.get_model().model == "configured-marketing-model"
+    monkeypatch.setenv("MARKETING_CODEX_REASONING", "high")
+    client = model_runtime.get_model()
+    assert client.model == "configured-marketing-model"
+    assert client.effort == "high"
 
 
 @pytest.mark.parametrize("missing", ["NEWS_CODEX_GATEWAY_URL", "CODEX_GATEWAY_SECRET"])

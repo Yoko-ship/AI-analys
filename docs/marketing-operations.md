@@ -1082,15 +1082,17 @@ can change them. Secrets are never stored in goal, source or content records.
 | `MARKETING_MODEL_PROVIDER=claude` | Use the existing Claude gateway if configured, otherwise the server's Claude CLI |
 | `MARKETING_MODEL_PROVIDER=ollama` | Use an installed local model through the configured Ollama service |
 | `MARKETING_MODEL_PROVIDER=disabled` | Preserve tasks but report model unavailability instead of generating fake answers |
-| `MARKETING_MODEL` | Model name override; required for Ollama, otherwise follows the selected provider's news model convention |
+| `MARKETING_MODEL` | Model name override; Codex defaults to `gpt-6.1-terra`, Claude follows its news model, and Ollama requires an installed model name. |
+| `MARKETING_CODEX_REASONING` | Codex reasoning effort; defaults to `medium`, independently of the news collector. |
 | `MARKETING_OLLAMA_URL` | Operator-configured service endpoint; defaults to loopback port 11434 |
 
 Codex uses the same `POST /v1/json` contract and persistent subscription login
 as the news collector. The web service already receives its private gateway
-settings through `marketing-planner.env`. `NEWS_CODEX_MODEL`,
-`NEWS_CODEX_FALLBACK_MODEL`, `NEWS_CODEX_REASONING` and `NEWS_CODEX_TIMEOUT`
-retain their news meanings. `MARKETING_MODEL` can select a different primary
-model without changing the news collector. Missing gateway configuration leaves
+settings through `marketing-planner.env`. `NEWS_CODEX_FALLBACK_MODEL` and
+`NEWS_CODEX_TIMEOUT` retain their news meanings. Marketing defaults to
+`gpt-6.1-terra` with `medium` reasoning, even when news uses another model or
+effort. `MARKETING_MODEL` and `MARKETING_CODEX_REASONING` can override those
+defaults without changing the news collector. Missing gateway configuration leaves
 tasks unavailable rather than using another local login. The gateway keeps its
 existing concurrency limit; news and marketing share that capacity.
 
