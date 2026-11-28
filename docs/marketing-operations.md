@@ -1083,13 +1083,36 @@ can change them. Secrets are never stored in goal, source or content records.
 
 | Setting | Meaning |
 | --- | --- |
+| `MARKETING_MODEL_PROVIDER` unset | Follow `NEWS_AI_PROVIDER`; use Claude when neither provider is set. An explicit marketing selection takes priority. |
+| `MARKETING_MODEL_PROVIDER=codex` | Reuse the existing news Codex gateway, with `NEWS_CODEX_GATEWAY_URL` and `CODEX_GATEWAY_SECRET`; both are required. No local CLI fallback. |
 | `MARKETING_MODEL_PROVIDER=claude` | Use the existing Claude gateway if configured, otherwise the server's Claude CLI |
 | `MARKETING_MODEL_PROVIDER=ollama` | Use an installed local model through the configured Ollama service |
 | `MARKETING_MODEL_PROVIDER=disabled` | Preserve tasks but report model unavailability instead of generating fake answers |
-| `MARKETING_MODEL` | Model name; required for Ollama, otherwise follows the existing Claude model convention |
+| `MARKETING_MODEL` | Model name override; required for Ollama, otherwise follows the selected provider's news model convention |
 | `MARKETING_OLLAMA_URL` | Operator-configured service endpoint; defaults to loopback port 11434 |
 
-The Claude adapter is the existing model-only adapter: no built-in tools, MCP
+Codex uses the same `POST /v1/json` contract and persistent subscription login
+as the news collector. The web service already receives its private gateway
+settings through `marketing-planner.env`. `NEWS_CODEX_MODEL`,
+`NEWS_CODEX_FALLBACK_MODEL`, `NEWS_CODEX_REASONING` and `NEWS_CODEX_TIMEOUT`
+retain their news meanings. `MARKETING_MODEL` can select a different primary
+model without changing the news collector. Missing gateway configuration leaves
+tasks unavailable rather than using another local login. The gateway keeps its
+existing concurrency limit; news and marketing share that capacity.
+
+Marketing role schemas include optional fields and open calculation maps that
+Codex's strict output schema cannot represent directly. The gateway receives a
+strict `result_json` string envelope and the original role schema in the model
+instruction. The adapter decodes the inner object; the worker validates it
+against the unchanged role contract before saving it. Invalid JSON or role data
+cannot complete a task. Model errors use the marketing task's existing retry and checkpoint
+flow. Gateway configuration is not proof of a working login: verify one completed
+internal task, its saved role output and the absence of a publication before
+enabling release rules. This connects the background worker to the gateway, not
+to an interactive chat thread. Owner approvals and publishing permissions remain
+separate from model access.
+
+The Codex and Claude adapters are model-only: no built-in tools, MCP
 tools, workspace instructions or shell actions are exposed to these role calls.
 Its existing login remains the owner's responsibility. Ollama requires the
 chosen model already installed and a running service. A configuration flag is
