@@ -17,6 +17,35 @@ def client(monkeypatch):
     return TestClient(api.app)
 
 
+def test_standalone_video_http_handoff_and_private_download(client, monkeypatch, tmp_path):
+    from marketing import store, video_studio, video_files
+    from test_marketing_video_studio import Director
+    from datetime import datetime, timezone
+    base = '/api/admin/ai-marketing'
+    response = client.post(base + '/videos', json={'brief': 'Show UZStock website and its news section'})
+    assert response.status_code == 200
+    item = response.json()['item']
+    assert client.post(base + '/videos', json={'brief': 'too short', 'account_id': 'tg'}).status_code == 422
+    now = datetime.now(timezone.utc)
+    video_studio.run_one(Director(), now)
+    claimed = video_studio.claim(now)
+    workspace = client.get(base + '/workspace').json()
+    assert workspace['video_worker']['online']
+    assert claimed['lease_token'] not in str(workspace)
+    assert client.get(base + f'/videos/{item["id"]}/file').status_code == 404
+    monkeypatch.setenv('MARKETING_VIDEO_WORKER_TOKEN', 'synthetic-worker-token-' + 'x' * 40)
+    headers = {'Authorization': 'Bearer synthetic-worker-token-' + 'x' * 40,
+               'X-Video-Lease': claimed['lease_token'], 'X-Video-Offset': '0'}
+    path = f'/api/marketing-video-worker/{item["id"]}'
+    monkeypatch.setattr(video_files, 'inspect_video', lambda path: {'duration_seconds': 20})
+    assert client.post(path + '/chunk', headers=headers, content=b'fixture MP4').json()['offset'] == 11
+    assert client.post(path + '/complete', headers=headers, json={'lease_token': claimed['lease_token'], 'stage': 'uploading'}).status_code == 200
+    result = client.get(base + f'/videos/{item["id"]}/file')
+    assert result.content == b'fixture MP4' and result.headers['content-type'] == 'video/mp4'
+    with store.connection() as c:
+        assert not store.list_items(c, 'candidate') and not store.list_items(c, 'delivery')
+
+
 def test_editorial_rule_http_versions_history_and_authority(client):
     from marketing import automation
     from test_marketing_automation import setup_rule

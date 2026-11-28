@@ -42,6 +42,14 @@ if request.get('path') == '/api/track/actions':
     web_analytics.DATABASE_URL = os.environ['DATABASE_URL']
     app.include_router(actions_router)
 meta_fixture = Path(sys.argv[1]).with_suffix(".meta-fixture")
+if request["method"] == "VIDEO_DIRECTOR":
+    from datetime import datetime, timezone
+    from marketing import video_studio
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests"))
+    from test_marketing_video_studio import Director
+    video_studio.run_one(Director(), datetime.now(timezone.utc))
+    print(json.dumps({"status": 200, "body": {"ok": True}}))
+    sys.exit(0)
 if request["method"] == "META_CONFIGURE":
     from cryptography.fernet import Fernet
     meta_fixture.write_text(Fernet.generate_key().decode(), encoding="utf-8")

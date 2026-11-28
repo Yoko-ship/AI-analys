@@ -581,6 +581,28 @@ jobs:
             ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
               -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "$remote_command"
 
+      - name: Synchronize video worker credential
+        env:
+          MARKETING_VIDEO_WORKER_TOKEN: ${{ secrets.MARKETING_VIDEO_WORKER_TOKEN }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$MARKETING_VIDEO_WORKER_TOKEN" ]; then
+            echo "Video worker secret is not configured; preserving the server setting."
+            exit 0
+          fi
+          remote_command="$(python3 - <<'PY'
+          from pathlib import Path
+          import shlex
+          script = Path('scripts/configure_video_worker.py').read_text()
+          print('python3 -c ' + shlex.quote(script) + ' /root/uzstock/app/.env')
+          PY
+          )"
+          printf '%s' "$MARKETING_VIDEO_WORKER_TOKEN" | \
+            ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+              -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "$remote_command"
+
       - name: Synchronize intraday collector credentials
         # The collection credential is a deploy secret, never source code.  The
         # host uses it only for the collector's authenticated write endpoints.

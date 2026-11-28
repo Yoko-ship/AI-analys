@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test';
+import { workspace } from './helpers/marketing-workspace.js';
+
+for (const width of [1440, 390]) test(`Standalone video needs only a brief at ${width}px`, async ({ page }, info) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width, height: 950 });
+  const api = await workspace(page, info);
+  await page.getByRole('button', { name: 'Видеостудия', exact: true }).click();
+  await page.getByLabel('О чём ролик?', { exact: true }).fill('PR-ролик о сайте UZStock: как найти новости');
+  await page.getByRole('button', { name: 'Создать видео', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Видеопроект создан' })).toBeVisible();
+  await page.reload();
+  const card = page.getByRole('article').filter({ hasText: 'PR-ролик о сайте UZStock: как найти новости' });
+  await expect(card).toContainText('Сценарий в очереди');
+  const saved = api({ method: 'GET', path: '/api/admin/ai-marketing/workspace' }).body;
+  expect(saved.video_projects).toHaveLength(1);
+  expect(saved.accounts).toEqual([]);
+  expect(saved.candidates).toEqual([]);
+  expect(saved.deliveries).toEqual([]);
+  api({ method: 'VIDEO_DIRECTOR' });
+  await page.reload();
+  await expect(card).toContainText('Ожидает видеоворкер на ПК');
+  await card.locator('summary').click();
+  await expect(card).toContainText('Откройте новости на сайте');
+  await page.screenshot({ path: info.outputPath(`video-studio-${width}.png`), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await card.getByRole('button', { name: 'Отменить', exact: true }).click();
+  await expect(card).toContainText('Отменён');
+  await card.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(card).toContainText('Ожидает видеоворкер на ПК');
+});

@@ -10,6 +10,8 @@ from . import agents, catalog, channels, content, delivery, experiments, founder
 from .errors import MarketingError, require_owner
 from .models import Account, Candidate, ChartRef, Evidence, Goal, Input, PublicationSchedule, Strategy
 from .production_models import ProductionBrief
+from . import video_studio, video_files
+from .video_contract import VideoBrief
 from . import reconciliation, visibility, website, trends, execution, automation, editorial_experiments, recovery
 
 router = APIRouter(prefix="/api/admin/ai-marketing", tags=["marketing"], route_class=ControlRoute)
@@ -151,6 +153,7 @@ class RenderRequest(Version):
 def workspace(request: Request):
     from . import telegram_news
     with s.connection() as c:
+        video_projects = [video_studio.public(item) for item in s.list_items(c, "video_project")]
         data = {plural: s.list_items(c, kind) for plural, kind in (
             ("accounts", "account"), ("strategies", "strategy"), ("evidence", "evidence"),
             ("candidates", "candidate"), ("deliveries", "delivery"), ("tasks", "task"), ("snapshots", "snapshot"),
@@ -169,6 +172,8 @@ def workspace(request: Request):
         data["visibility_reviews"] = visibility.pending(c)
         data["reconciliation_read"] = s.get(c, "settings", "telegram_updates", required=False)
         data['website'] = website.status(c)
+        data['video_projects'] = video_projects
+        data['video_worker'] = video_studio.worker_status(c, datetime.now(timezone.utc))
         data['telegram_news'] = telegram_news.status(c, datetime.now(timezone.utc))
         data.update(goal=s.get(c, "goal", "primary", required=False), active_goal=goals.active_goal(c),
                     pause=s.get(c, "settings", "pause", required=False) or {"publications": False, "processing": False},
@@ -178,6 +183,29 @@ def workspace(request: Request):
                     analytics_settings=reports.settings(c), report_period=reports.current_week(datetime.now(timezone.utc)),
                     environment=s.environment(), timezone="Asia/Tashkent")
     return reply(request, data)
+
+
+@router.post("/videos")
+def create_video(request: Request, body: VideoBrief):
+    return reply(request, {"item": video_studio.public(video_studio.create(actor(request), body.model_dump()))})
+
+
+@router.post("/videos/{identifier}/cancel")
+def cancel_video(request: Request, identifier: str, body: Version):
+    return reply(request, {"item": video_studio.public(video_studio.cancel(actor(request), identifier, body.expected_version))})
+
+
+@router.post("/videos/{identifier}/retry")
+def retry_video(request: Request, identifier: str, body: Version):
+    return reply(request, {"item": video_studio.public(video_studio.retry(actor(request), identifier, body.expected_version))})
+
+
+@router.get("/videos/{identifier}/file")
+def video_file(request: Request, identifier: str):
+    with s.connection() as c:
+        item = s.get(c, "video_project", identifier)
+    return Response(video_files.read(item), media_type="video/mp4",
+                    headers={"Content-Disposition": 'attachment; filename="uzstock-video.mp4"'})
 
 
 @router.post('/recovery/complete')

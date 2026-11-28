@@ -7126,5 +7126,193 @@
       "_control_gate",
       "owner_gate"
     ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/videos",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_video",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/videos/{identifier}/cancel",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_video",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/videos/{identifier}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry_video",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/videos/{identifier}/file",
+    "methods": [
+      "GET"
+    ],
+    "name": "video_file",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/marketing-video-worker/claim",
+    "methods": [
+      "POST"
+    ],
+    "name": "claim_video",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/marketing-video-worker/{identifier}/progress",
+    "methods": [
+      "POST"
+    ],
+    "name": "video_progress",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/marketing-video-worker/{identifier}/fail",
+    "methods": [
+      "POST"
+    ],
+    "name": "video_failed",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/marketing-video-worker/{identifier}/chunk",
+    "methods": [
+      "POST"
+    ],
+    "name": "upload_video_chunk",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/marketing-video-worker/{identifier}/complete",
+    "methods": [
+      "POST"
+    ],
+    "name": "complete_video",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/videos",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_video__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/videos/{identifier}/cancel",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_video__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/videos/{identifier}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry_video__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/videos/{identifier}/file",
+    "methods": [
+      "GET"
+    ],
+    "name": "video_file__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/marketing-video-worker/claim",
+    "methods": [
+      "POST"
+    ],
+    "name": "claim_video__v2",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/marketing-video-worker/{identifier}/progress",
+    "methods": [
+      "POST"
+    ],
+    "name": "video_progress__v2",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/marketing-video-worker/{identifier}/fail",
+    "methods": [
+      "POST"
+    ],
+    "name": "video_failed__v2",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/marketing-video-worker/{identifier}/chunk",
+    "methods": [
+      "POST"
+    ],
+    "name": "upload_video_chunk__v2",
+    "dependencies": [
+      "worker_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/marketing-video-worker/{identifier}/complete",
+    "methods": [
+      "POST"
+    ],
+    "name": "complete_video__v2",
+    "dependencies": [
+      "worker_gate"
+    ]
   }
 ]

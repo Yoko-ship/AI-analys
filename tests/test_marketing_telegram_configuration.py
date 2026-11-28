@@ -60,3 +60,16 @@ def test_failed_atomic_replace_preserves_existing_environment(tmp_path, monkeypa
         save(path, TOKEN)
     assert path.read_text() == 'OTHER=keep\n'
     assert list(tmp_path.iterdir()) == [path]
+
+
+def test_video_worker_credential_is_private_and_preserves_other_environment(tmp_path):
+    path = tmp_path / '.env'
+    path.write_text('KEEP=value\nMARKETING_VIDEO_WORKER_TOKEN=old\n')
+    token = 'test-video-worker-' + 'x' * 40
+    args = [sys.executable, 'scripts/configure_video_worker.py', str(path)]
+    result = subprocess.run(args, input=token, text=True, capture_output=True)
+    assert result.returncode == 0 and token not in result.stdout + result.stderr
+    expected = 'KEEP=value\nMARKETING_VIDEO_WORKER_TOKEN=' + token + '\n'
+    assert path.read_text() == expected
+    invalid = subprocess.run(args, input=token + '\nOTHER=value', text=True, capture_output=True)
+    assert invalid.returncode != 0 and path.read_text() == expected

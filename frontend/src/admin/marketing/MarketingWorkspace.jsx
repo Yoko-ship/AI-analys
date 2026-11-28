@@ -12,9 +12,10 @@ import { connectionStatus } from './ChannelConnection.jsx';
 import { useSocialCallback } from './useSocialCallback.js';
 import { RecoveryPanel } from './RecoveryPanel.jsx';
 import { TelegramNews } from './TelegramNews.jsx';
+import { VideoStudio } from './VideoStudio.jsx';
 import './marketing.css';
 
-const tabs = [['overview', 'Обзор команды'], ['goal', 'Цель и стратегия'], ['sources', 'Источники'], ['content', 'Контент и очередь'], ['workflow', 'Рабочий цикл'], ['experiments', 'Эксперименты'], ['reports', 'Отчёты'], ['settings', 'Настройки']];
+const tabs = [['overview', 'Обзор команды'], ['videos', 'Видеостудия'], ['goal', 'Цель и стратегия'], ['sources', 'Источники'], ['content', 'Контент и очередь'], ['workflow', 'Рабочий цикл'], ['experiments', 'Эксперименты'], ['reports', 'Отчёты'], ['settings', 'Настройки']];
 
 export default function MarketingWorkspace({ apiFetch }) {
   const { data, error, notice, busy, sync, request, readFile, downloadFile } = useMarketing(apiFetch);
@@ -77,6 +78,7 @@ export default function MarketingWorkspace({ apiFetch }) {
     {tab === 'settings' && <SettingsSection {...props} />}
     {tab === 'sources' && <SourcesSection {...props} />}
     {tab === 'content' && <ContentSection {...props} />}
+    {tab === 'videos' && <VideoStudio {...props} />}
     {tab === 'workflow' && <WorkflowSection {...props} />}
     {tab === 'reports' && <ReportsSection {...props} />}
     {tab === 'experiments' && <ExperimentsSection {...props} />}

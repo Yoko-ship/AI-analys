@@ -20,6 +20,7 @@ from issuer_analysis_api import router as issuer_analysis_v1_router
 from server.settings import PROJECT_ROOT
 import admin_control.api as control_api
 import marketing.api as marketing_api
+from marketing import video_worker_api
 import marketing.public_media as marketing_public_media
 import analytics_api
 import os
@@ -147,6 +148,7 @@ app.include_router(terminal_routes.admin_router, dependencies=[Depends(auth_acce
 app.include_router(control_api.router, dependencies=[Depends(auth_access._control_gate)])
 app.include_router(marketing_api.router, dependencies=[Depends(auth_access._control_gate), Depends(marketing_api.owner_gate)])
 app.include_router(marketing_public_media.router)
+app.include_router(video_worker_api.router)
 app.include_router(v3_api.router, dependencies=[Depends(auth_access._control_gate)])
 
 

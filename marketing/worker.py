@@ -7,6 +7,7 @@ import os
 from . import agents, automation, channels, delivery, execution, incidents, media, meta_confirmation, model_runtime, news_review, production, reports, scheduling, source_adapters, sources, store as s, telegram_news, website
 from .errors import MarketingError
 from .permissions import timestamp
+from . import video_studio
 
 log = logging.getLogger(__name__)
 ACTOR = {"id": "worker", "role": "coordinator"}
@@ -42,6 +43,8 @@ def tick(*, model=None, transport=None, fetch=None, now=None):
     incident_work = incidents.scan(now)
     media_work = media.run_one(now)
     model_work = agents.run_one(model, now) or review_work
+    video_work = video_studio.run_one(model, now)
+    model_work = model_work or video_work
     website_work = website.run_one(supplied_now)
     report_work = not pause.get("processing") and reports.freeze_closed_week(supplied_now or datetime.now(timezone.utc))
     completed_at = supplied_now or datetime.now(timezone.utc)
