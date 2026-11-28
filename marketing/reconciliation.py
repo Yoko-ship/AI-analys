@@ -22,7 +22,8 @@ def _case(c, job, receipts, used):
     kind = {"image": "photo", "carousel": "photo", "video": "video", "post": "post"}.get(expected["format"])
     nearby = [row for row in receipts if row["channel_id"] == job["external_account_id"]
               and claimed - timedelta(seconds=1) <= permissions.timestamp(row["published_at"]) <= claimed + timedelta(minutes=5)]
-    heads = [row for row in nearby if row["kind"] == kind and row["text"] == expected["text"]]
+    heads = [row for row in nearby if row["kind"] == kind and row["text"] == expected["text"]
+             and row.get('text_links', []) == expected.get('text_links', [])]
     if len(heads) > 1:
         return {**base, "status": "ambiguous"}
     bundles = []

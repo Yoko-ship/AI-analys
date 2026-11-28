@@ -72,6 +72,7 @@ class Telegram:
             evidence = {key: sources.current_evidence(c, key) for key in item["evidence_ids"]}
             assets = [s.get(c, "asset", ref["id"]) for ref in item["assets"]]
         copy = publishing.payload_text(account, item, evidence)
+        links = publishing.telegram_links(account, item, copy)
         if publishing.check(account, item, evidence):
             raise PermanentRejection("Telegram content limits require a revision")
         data = {"chat_id": account["external_id"]}
@@ -81,6 +82,8 @@ class Telegram:
                 raise PermanentRejection("Choose a media format for attachments")
             method = "sendMessage"
             data["text"] = copy
+            if links:
+                data['entities'] = json.dumps(links, ensure_ascii=False)
             if publication_links.valid_destination(item['destination_url']):
                 data['link_preview_options'] = json.dumps({
                     'url': publication_links.destination(item), 'prefer_large_media': True, 'show_above_text': True})
@@ -109,17 +112,24 @@ class Telegram:
                     raise PermanentRejection("Verified media is unavailable or outside Telegram limits") from None
                 key = f"media{index}" if item["format"] == "carousel" else kind
                 files[key] = (name, raw, mime)
-                entries.append({"type": kind, "media": "attach://" + key, **({"caption": copy} if index == 0 else {})})
+                entry = {'type': kind, 'media': 'attach://' + key}
+                if index == 0:
+                    entry['caption'] = copy
+                    if links:
+                        entry['caption_entities'] = links
+                entries.append(entry)
             if item["format"] == "carousel":
                 method = "sendMediaGroup"
                 data["media"] = json.dumps(entries, ensure_ascii=False)
             else:
                 method = "sendVideo" if item["format"] == "video" else "sendPhoto"
                 data["caption"] = copy
+                if links:
+                    data['caption_entities'] = json.dumps(links, ensure_ascii=False)
         # Verify platform rights again outside the database transaction, before
         # any mutating request. A failed read is known not to have sent the post.
         self.probe(account)
-        before_send({"text": copy, "format": item["format"], "media_count": len(assets)})
+        before_send({"text": copy, "format": item["format"], "media_count": len(assets), **({'text_links': links} if links else {})})
         result = self._request(method, data, files)
         messages = result if isinstance(result, list) else [result]
         count = len(assets) if item["format"] == "carousel" else 1
@@ -134,4 +144,4 @@ class Telegram:
         username = (messages[0].get("chat") or {}).get("username", "")
         channel = username if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{4,31}", username) else "c/" + account["external_id"][4:]
         return {"external_id": ids[0], "external_ids": ids, "url": f"https://t.me/{channel}/{ids[0]}",
-                "provider": "telegram", "payload_digest": hashlib.sha256(copy.encode()).hexdigest()}
+                "provider": "telegram", "payload_digest": s.digest({'text': copy, 'text_links': links}) if links else hashlib.sha256(copy.encode()).hexdigest()}

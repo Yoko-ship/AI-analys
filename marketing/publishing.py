@@ -3,6 +3,12 @@ import re
 from . import instagram_links, publication_links
 from .catalog import FORMATS
 
+TELEGRAM_NEWS_LABELS = {'ru': 'Опубликовано на UZStock', 'uz': 'UZStock’da e’lon qilingan', 'en': 'Published on UZStock'}
+
+
+def _url_token(url):
+    return re.escape(url) + r'(?=$|[\s<>"\u201c\u201d]|[.,;:!?)](?=$|[\s.,;:!?]))'
+
 
 def text(item, evidence):
     parts = [item["body"]]
@@ -11,7 +17,7 @@ def text(item, evidence):
     destination = publication_links.destination(item)
     if item['destination_url'] and destination != item['destination_url']:
         # Replace a complete URL token, never another URL sharing its prefix.
-        pattern = re.escape(item['destination_url']) + r'(?=$|[\s<>"\u201c\u201d]|[.,;:!?)](?=$|[\s.,;:!?]))'
+        pattern = _url_token(item['destination_url'])
         parts = [re.sub(pattern, lambda _: destination, part) for part in parts]
     if destination and destination not in "\n\n".join(parts):
         parts.append(destination)
@@ -30,26 +36,46 @@ def media_only(account, item):
 def payload_text(account, item, evidence):
     if media_only(account, item):
         return ""
-    if (account and account['platform'] == 'telegram' and account.get('automatic_news')
-            and item['rubric'] == 'news' and publication_links.valid_destination(item['destination_url'])):
+    if _telegram_news(account, item):
         return telegram_news_text(item, evidence)
     copy = text(item, evidence)
     return copy + "\n\n" + instagram_links.caption(item) if account and account["platform"] == "instagram" and instagram_links.caption(item) else copy
 
 
+def _telegram_news(account, item):
+    return (account and account['platform'] == 'telegram' and account.get('automatic_news')
+            and item['rubric'] == 'news' and publication_links.valid_destination(item['destination_url']))
+
+
+def telegram_links(account, item, copy):
+    if not _telegram_news(account, item):
+        return []
+    label = TELEGRAM_NEWS_LABELS[item['language']]
+    return [{'type': 'text_link', 'offset': len(copy[:-len(label)].encode('utf-16-le')) // 2,
+             'length': len(label.encode('utf-16-le')) // 2, 'url': publication_links.destination(item)}]
+
+
 def telegram_news_text(item, evidence):
     originals = {ev['url'] for ev in evidence.values() if ev and ev.get('url')}
     publishers = {ev['publisher'] for ev in evidence.values() if ev and ev.get('publisher')}
+    destinations = {item['destination_url'], publication_links.destination(item)} - {''}
     credit = r'^\s*(?:источник(?:и)?|первоисточники|(?:original )?sources?|(?:birlamchi )?manba(?:lar)?)\s*:'
+    cta = r'^\s*(?:Подробнее(?: на UZStock)?|Read more(?: on UZStock)?|Batafsil(?: UZStock[‘’\x27]da)?)\s*:'
     lines = [line for line in item['body'].splitlines()
-             if not re.match(credit, line, re.I) and line.strip() not in originals | publishers]
+             if not re.match(credit, line, re.I) and line.strip() not in originals | publishers | destinations
+             and not (re.match(cta, line, re.I) and any(url in line for url in destinations))
+             and line.strip() not in TELEGRAM_NEWS_LABELS.values()]
     body = '\n'.join(lines).strip()
+    for destination in sorted(destinations, key=len, reverse=True):
+        body = re.sub(_url_token(destination), 'UZStock', body)
     for publisher in publishers:
         name = re.escape(publisher)
         body = re.sub(r'(?im)^(?:По сообщению|According to)\s+' + name + r'\s*,\s*', '', body)
         body = re.sub(r'(?im)^' + name + r'\s+xabariga ko[‘’\x27]ra\s*,\s*', '', body)
-    label = {'ru': 'Источник', 'uz': 'Manba', 'en': 'Source'}[item['language']]
-    return text({**item, 'body': body + '\n\n' + label + ': UZStock'}, {})
+    parts = [body, TELEGRAM_NEWS_LABELS[item['language']]]
+    if item['title'] not in body:
+        parts.insert(0, item['title'])
+    return '\n\n'.join(parts)
 
 
 def check(account, item, evidence):
@@ -112,7 +138,8 @@ def preview(c, item, *, evidence=None):
         job = s.get(c, 'delivery', item['id'], required=False)
         if job and job.get('platform'):
             account = {**(account or {}), 'platform': job['platform']}
-    return {"text": payload_text(account, item, evidence), "media_only": media_only(account, item), "candidate_version": item["version"], "platform": account["platform"] if account else None,
+    copy = payload_text(account, item, evidence)
+    return {"text": copy, "text_links": telegram_links(account, item, copy), "media_only": media_only(account, item), "candidate_version": item["version"], "platform": account["platform"] if account else None,
             "instagram_link": item.get("instagram_link", "none"), "link_destination": publication_links.destination(item) if item.get("instagram_link") == "profile" else None,
             "tracked_destination": (item.get('tracking') or {}).get('destination'), "tracking_dataset": (item.get('tracking') or {}).get('dataset'),
             "reasons": check(account, item, evidence)}

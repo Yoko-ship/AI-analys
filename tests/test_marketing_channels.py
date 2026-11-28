@@ -64,10 +64,10 @@ class TelegramPeer:
         return response
 
 
-def connected(monkeypatch, **peer_options):
+def connected(monkeypatch, *, account_changes=None, **peer_options):
     from marketing import channels
     peer = TelegramPeer(monkeypatch, **peer_options)
-    saved = account(formats=["post", "image", "carousel", "video", "story"])
+    saved = account(**{'formats': ["post", "image", "carousel", "video", "story"], **(account_changes or {})})
     proof = channels.probe(OWNER, saved["id"], saved["version"], NOW)
     assert proof["connection_status"] == "connected"
     return peer, proof
@@ -131,33 +131,43 @@ def test_worker_uses_the_configured_adapter_and_saves_confirmed_message_identity
         assert TOKEN not in json.dumps(store.history(c, "account", saved["id"]))
 
 
-@pytest.mark.parametrize('language,lead,label', [
-    ('ru', 'По сообщению UzDaily.uz, ', 'Источник'),
-    ('uz', 'UzDaily.uz xabariga ko‘ra, ', 'Manba'),
-    ('en', 'According to UzDaily.uz, ', 'Source'),
+@pytest.mark.parametrize('language,lead,label,link_label', [
+    ('ru', 'По сообщению UzDaily.uz, ', 'Источник', 'Опубликовано на UZStock'),
+    ('uz', 'UzDaily.uz xabariga ko‘ra, ', 'Manba', 'UZStock’da e’lon qilingan'),
+    ('en', 'According to UzDaily.uz, ', 'Source', 'Published on UZStock'),
 ])
-def test_automatic_news_uses_uzstock_source_and_large_preview_above_text(monkeypatch, language, lead, label):
+def test_automatic_news_uses_uzstock_source_and_large_preview_above_text(monkeypatch, language, lead, label, link_label):
     from marketing import channels, publishing
     peer = TelegramPeer(monkeypatch)
     saved = account(automatic_news=True, languages=['ru', 'uz', 'en'])
     channels.probe(OWNER, saved['id'], saved['version'], NOW)
     original = evidence(url='https://www.uzdaily.uz/ru/fitch-podtverdila-reiting-sqb-insurance-na-urovne-bb',
                         publisher='UzDaily.uz', entity='SQB Insurance', excerpt='Fitch подтвердило рейтинг BB.', data={}, units={})
-    item = candidate(event='news:10528', entity='SQB Insurance', claims=[], language=language, title='Рейтинг SQB Insurance — BB',
-                     body=lead + 'Fitch подтвердило рейтинг BB.\n\n' + label + ': UzDaily.uz — ' + original['url'],
-                     destination_url='https://uzstock.uz/news/10528')
+    item = candidate(event='news:10528', entity='SQB Insurance', claims=[], language=language, title='📈 Рейтинг SQB Insurance — BB',
+                     body=lead + 'Fitch подтвердило рейтинг BB.\n\n' + label + ': UzDaily.uz — ' + original['url']
+                          + '\n\nПодробнее на UZStock: https://uzstock.uz/news/10528',
+                     destination_url='https://uzstock.uz/news/10528', track_visits=True)
     assert content.check_candidate(item['id'], NOW)['status'] == 'ready'
     delivery.schedule(item['id'], NOW)
     assert worker.tick(now=NOW)['delivery_work']
     sent, = [data for method, data, _ in peer.calls if method == 'sendMessage']
     assert 'UzDaily' not in sent['text'] and original['url'] not in sent['text']
-    assert label + ': UZStock' in sent['text'] and 'Fitch подтвердило рейтинг BB.' in sent['text']
+    assert sent['text'].endswith(link_label) and 'Fitch подтвердило рейтинг BB.' in sent['text']
+    assert 'https://' not in sent['text']
+    entity, = json.loads(sent['entities'])
+    encoded = sent['text'].encode('utf-16-le')
+    assert encoded[entity['offset'] * 2:(entity['offset'] + entity['length']) * 2].decode('utf-16-le') == link_label
+    assert entity['type'] == 'text_link'
     options = json.loads(sent['link_preview_options'])
     assert options['show_above_text'] is True and options['prefer_large_media'] is True
     assert options['url'].startswith('https://uzstock.uz/news/10528')
+    assert entity['url'] == options['url']
+    assert entity['url'] == item['tracking']['destination'] and '?uz_pub=' in entity['url']
     with store.connection() as c:
         current = store.get(c, 'candidate', item['id'])
         assert publishing.preview(c, current)['text'] == sent['text']
+        assert publishing.preview(c, current)['text_links'] == [entity]
+        assert store.get(c, 'delivery', item['id'])['dispatch_payload']['text_links'] == [entity]
         assert store.get(c, 'evidence', original['id'])['url'] == original['url']
 
 
@@ -201,9 +211,10 @@ def test_explicit_flood_rejection_respects_provider_delay_without_sleeping(monke
 
 
 @pytest.mark.parametrize("format,method", [("image", "sendPhoto"), ("carousel", "sendMediaGroup"), ("video", "sendVideo")])
-def test_real_rendered_media_is_uploaded_in_one_request_with_all_confirmed_ids(monkeypatch, format, method):
+@pytest.mark.parametrize('branded', [False, True])
+def test_real_rendered_media_is_uploaded_in_one_request_with_all_confirmed_ids(monkeypatch, format, method, branded):
     from marketing import media
-    peer, _ = connected(monkeypatch)
+    peer, _ = connected(monkeypatch, account_changes={'automatic_news': branded})
     evidence()
     item = candidate(format=format)
     media.request_candidate(OWNER, item["id"], item["version"])
@@ -215,6 +226,12 @@ def test_real_rendered_media_is_uploaded_in_one_request_with_all_confirmed_ids(m
     sends = [call for call in peer.calls if call[0].startswith("send")]
     assert len(sends) == 1 and sends[0][0] == method
     assert b"https://uzstock.uz/news/decision-123" in sends[0][2].body
+    if branded:
+        payload = json.loads(sends[0][1]['media'])[0] if format == 'carousel' else sends[0][1]
+        links = payload['caption_entities'] if format == 'carousel' else json.loads(payload['caption_entities'])
+        assert links[0]['url'] == item['destination_url']
+        caption = payload['caption'] if isinstance(payload['caption'], str) else payload['caption'].decode()
+        assert caption.endswith('Опубликовано на UZStock') and 'https://' not in caption
     with store.connection() as c:
         job = store.get(c, "delivery", item["id"])
         assert job["status"] == "published" and len(job["external_ids"]) == len(checked["assets"])

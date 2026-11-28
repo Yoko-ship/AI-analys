@@ -57,8 +57,8 @@ for (const width of [1440, 390]) test(`Telegram branded news preview at ${width}
     .filter({ has: page.getByRole('button', { name: 'Текст для отправки', exact: true }) });
   await card.getByRole('button', { name: 'Текст для отправки', exact: true }).click();
   const preview = page.getByRole('dialog').locator('.mkt-post-preview');
-  await expect(preview).toContainText('Источник: UZStock');
-  await expect(preview).toContainText('https://uzstock.uz/news/10528');
+  await expect(preview.getByRole('link', { name: 'Опубликовано на UZStock', exact: true })).toHaveAttribute('href', 'https://uzstock.uz/news/10528');
+  await expect(preview).not.toContainText('https://');
   await expect(preview).not.toContainText('UzDaily');
   await expect(preview).not.toContainText('uzdaily.uz');
   await expect(page.getByRole('dialog')).not.toContainText('Текст включает прямую ссылку и оригиналы');

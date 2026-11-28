@@ -69,6 +69,26 @@ def match(job):
         return next(row for row in reconciliation.cases(c) if row["delivery_id"] == job["id"])
 
 
+@pytest.mark.parametrize('forwarded', [False, True])
+def test_hidden_article_link_must_match_before_confirming_a_send(monkeypatch, forwarded):
+    from marketing import reconciliation
+    peer, job, item, copy = uncertain(monkeypatch)
+    link = {'type': 'text_link', 'offset': 0, 'length': 5, 'url': 'https://uzstock.uz/news/10528'}
+    with store.connection(write=True) as c:
+        job = store.put(c, 'delivery', {**job, 'dispatch_payload': {**job['dispatch_payload'], 'text_links': [link]}},
+                        actor=OWNER, action='linked_text_fixture', expected_version=job['version'])
+    update = observation(copy, forwarded=forwarded)
+    update['message' if forwarded else 'channel_post']['entities'] = [{**link, 'url': 'https://uzstock.uz/news/10523'}]
+    peer.updates = [update]
+    reconciliation.poll(OWNER, NOW)
+    assert match(job)['status'] == 'no_confirmation'
+    update = observation(copy, forwarded=forwarded, update_id=101)
+    update['message' if forwarded else 'channel_post']['entities'] = [link]
+    peer.updates = [update]
+    reconciliation.poll(OWNER, NOW)
+    assert match(job)['status'] == 'matched'
+
+
 @pytest.mark.parametrize("forwarded", [False, True])
 def test_exact_platform_observation_requires_owner_confirmation_then_never_resends(monkeypatch, forwarded):
     from marketing import reconciliation

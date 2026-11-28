@@ -35,6 +35,19 @@ def normalize(update, targets):
     copy = message.get("text", "") if kind == "post" else message.get("caption", "")
     if not isinstance(copy, str) or len(copy) > 20000:
         return None
+    entities = message.get('entities' if kind == 'post' else 'caption_entities', [])
+    if not isinstance(entities, list):
+        return None
+    links = []
+    for entity in entities:
+        if not isinstance(entity, dict) or entity.get('type') != 'text_link':
+            continue
+        offset, length, url = entity.get('offset'), entity.get('length'), entity.get('url')
+        if (type(offset) is not int or type(length) is not int or offset < 0 or length <= 0
+                or offset + length > len(copy.encode('utf-16-le')) // 2
+                or not isinstance(url, str) or not 1 <= len(url) <= 2048):
+            return None
+        links.append({'type': 'text_link', 'offset': offset, 'length': length, 'url': url})
     if kind == "post" and any(message.get(key) for key in ("document", "animation", "audio", "sticker", "voice")):
         return None
     group = message.get("media_group_id")
@@ -47,6 +60,7 @@ def normalize(update, targets):
         return None
     return {"id": s.digest([target, str(message_id)]), "channel_id": target, "external_id": str(message_id),
             "published_at": published_at, "text": copy, "kind": kind, "group_keys": [group_key] if group_key else [],
+            **({'text_links': sorted(links, key=lambda link: link['offset'])} if links else {}),
             "url": post_url(target, message_id, chat.get("username", "")), "observation_type": "channel" if direct else "forward",
             "edited": "edited_channel_post" in update, "update_id": update["update_id"]}
 
