@@ -122,6 +122,27 @@ def test_social_connection_endpoints_require_a_human_owner(monkeypatch):
     for path in ["/accounts/li/linkedin/start", "/oauth/linkedin/finish", "/accounts/li/linkedin/disconnect", "/deliveries/missing/confirm-visible",
                  "/accounts/facebook/meta/start", "/oauth/meta/finish", "/accounts/facebook/meta/select", "/accounts/facebook/meta/disconnect", "/candidates/missing/release-draft"]:
         assert viewer_client.post("/api/admin/ai-marketing" + path, json={}).status_code == 403
+    assert viewer_client.put('/api/admin/ai-marketing/telegram/tg/schedule', json={}).status_code == 403
+
+
+def test_telegram_schedule_http_preserves_connection_and_checks_versions(client, monkeypatch):
+    from test_marketing_telegram_news import connected
+    saved = connected(monkeypatch)
+    path = '/api/admin/ai-marketing/telegram/tg/schedule'
+    data = {'news_daily_limit': 3, 'news_publish_times': ['10:00', '14:00', '18:00'],
+            'window_start': '09:00', 'window_end': '21:00', 'min_interval_minutes': 30}
+    body = {'expected_version': saved['version'], 'data': data}
+    assert client.put(path, json={**body, 'data': {**data, 'news_publish_times': ['10:00']}}).status_code == 422
+    response = client.put(path, json=body)
+    assert response.status_code == 200, response.text
+    updated = response.json()['item']
+    assert updated['news_daily_limit'] == 3
+    assert updated['news_publish_times'] == ['10:00:00', '14:00:00', '18:00:00']
+    for key in ['connection_fingerprint', 'connection_identity', 'mode', 'languages', 'valid_until']:
+        assert updated[key] == saved[key]
+    assert client.put(path, json=body).status_code == 409
+    assert client.put(path, json={**body, 'expected_version': updated['version'],
+                                 'data': {**data, 'mode': 'automatic'}}).status_code == 422
 
 
 def test_linkedin_visibility_confirmation_is_owner_observation_of_a_created_id(client, monkeypatch):

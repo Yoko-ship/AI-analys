@@ -1,6 +1,55 @@
 import { test, expect } from '@playwright/test';
 import { workspace } from './helpers/marketing-workspace.js';
 
+for (const width of [1440, 390]) test(`Telegram daily schedule persists at ${width}px`, async ({ page }, info) => {
+  test.setTimeout(90000);
+  page.setDefaultTimeout(15000);
+  await page.setViewportSize({ width, height: 950 });
+  const api = await workspace(page, info), base = '/api/admin/ai-marketing';
+  api({ method: 'TELEGRAM_CONFIGURE' });
+  expect(api({ method: 'POST', path: `${base}/telegram/connect`, body: { channel: '-100123', expected_version: 0 } }).status).toBe(200);
+  await page.reload();
+  const panel = page.getByRole('region', { name: 'Telegram', exact: true });
+  await panel.getByLabel('Постов в день', { exact: true }).fill('3');
+  await panel.getByLabel('Когда публиковать', { exact: true }).selectOption('times');
+  for (const [i, time] of ['10:00', '14:00', '18:00'].entries()) {
+    await panel.getByLabel(`Время поста ${i + 1}`, { exact: true }).fill(time);
+  }
+  await panel.getByRole('button', { name: 'Сохранить расписание', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Расписание сохранено' })).toBeVisible();
+  await page.reload();
+  await expect(panel.getByLabel('Постов в день', { exact: true })).toHaveValue('3');
+  await expect(panel.getByLabel('Время поста 2', { exact: true })).toHaveValue('14:00');
+  let saved = api({ method: 'GET', path: `${base}/workspace` }).body.accounts[0];
+  expect(saved.news_publish_times).toEqual(['10:00:00', '14:00:00', '18:00:00']);
+  expect(saved.news_daily_limit).toBe(3);
+  // Updating other channel rules must not erase its schedule.
+  await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await page.getByRole('button', { name: 'Настроить Telegram UZStock', exact: true }).click();
+  await page.getByRole('button', { name: 'Сохранить правила аккаунта', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Правила аккаунта сохранены' })).toBeVisible();
+  saved = api({ method: 'GET', path: `${base}/workspace` }).body.accounts[0];
+  expect(saved.news_publish_times).toEqual(['10:00:00', '14:00:00', '18:00:00']);
+  await page.getByRole('button', { name: 'Обзор команды', exact: true }).click();
+  await page.reload();
+  await panel.getByLabel('Время поста 2', { exact: true }).fill('10:00');
+  await panel.getByRole('button', { name: 'Сохранить расписание', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Для каждого поста нужно отдельное время');
+  await expect(panel.getByLabel('Время поста 2', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  expect(api({ method: 'GET', path: `${base}/workspace` }).body.accounts[0].news_publish_times).toEqual(saved.news_publish_times);
+  await panel.getByLabel('Время поста 2', { exact: true }).fill('14:00');
+  await panel.getByRole('button', { name: 'Сохранить расписание', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Расписание сохранено' })).toBeVisible();
+  await panel.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath(`telegram-schedule-${width}.png`), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await panel.getByLabel('Когда публиковать', { exact: true }).selectOption('ready');
+  await panel.getByRole('button', { name: 'Сохранить расписание', exact: true }).click();
+  await page.reload();
+  await expect(panel.getByLabel('Когда публиковать', { exact: true })).toHaveValue('ready');
+  expect(api({ method: 'GET', path: `${base}/workspace` }).body.accounts[0].news_publish_times).toEqual([]);
+});
+
 for (const width of [1440, 390]) test(`Telegram connects without campaign configuration at ${width}px`, async ({ page }, info) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width, height: 950 });

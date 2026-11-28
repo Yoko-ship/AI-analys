@@ -7104,5 +7104,27 @@
       "_control_gate",
       "owner_gate"
     ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/telegram/{account_id}/schedule",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_telegram_schedule",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/telegram/{account_id}/schedule",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_telegram_schedule__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
   }
 ]

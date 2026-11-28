@@ -1,4 +1,5 @@
 import { Field, Panel, Status } from './Widgets.jsx';
+import { TelegramSchedule } from './TelegramSchedule.jsx';
 
 export function TelegramNews({ data, request, busy, navigate }) {
   const account = data.accounts.find(item => item.platform === 'telegram');
@@ -25,12 +26,13 @@ export function TelegramNews({ data, request, busy, navigate }) {
         <Status value={account.paused ? 'paused' : 'connected'} /></div>
       <p>Новости UZStock подбираются автоматически. ИИ сверяет источник, готовит текст и проверяет его перед выпуском.</p>
       <p>{account.mode === 'automatic' ? 'Проверенные посты публикуются автоматически.' : account.mode === 'manual'
-        ? 'Готовые посты ждут вашего решения перед публикацией.' : 'Готовые посты сохраняются как внутренние черновики.'} До {data.telegram_news?.max_daily || 2} постов в день.</p>
+        ? 'Готовые посты ждут вашего решения перед публикацией.' : 'Готовые посты сохраняются как внутренние черновики.'} До {account.news_daily_limit || 2} постов в день.</p>
       {data.pause.processing && <p role="status">Обработка материалов на общей паузе. Возобновите её в настройках.</p>}
       {!data.model.configured && <p role="status">Подключение ИИ на сервере недоступно. Канал сохранён.</p>}
       {latest ? <p><Status value={latest.status} /> {latest.title}</p> : <p className="mkt-muted">Ожидаем свежую новость. Открытая вкладка и включённый компьютер не нужны.</p>}
       <div className="mkt-actions"><button onClick={() => navigate('content')}>Открыть посты</button>
         <button disabled={busy} onClick={pause}>{account.paused ? 'Возобновить Telegram' : 'Приостановить Telegram'}</button></div>
+      <TelegramSchedule account={account} request={request} busy={busy} />
     </div> : <form className="mkt-form" onSubmit={connect}>
       <p>Подключите канал один раз. Источники, задания и проверка новостей работают автоматически.</p>
       {!configured && <p role="status">Сначала сохраните токен бота на сервере. После этого здесь понадобится только канал.</p>}

@@ -104,7 +104,35 @@ class Strategy(Input):
     scenarios: list[Scenario] = Field(min_length=3, max_length=3)
 
 
-class Account(Input):
+class PublicationSchedule(Input):
+    window_start: time = time(9)
+    window_end: time = time(21)
+    min_interval_minutes: int = Field(default=60, ge=1, le=10080)
+    news_daily_limit: int = Field(default=2, ge=1, le=24)
+    news_publish_times: list[time] = Field(default_factory=list, max_length=24)
+
+    @model_validator(mode="after")
+    def valid_schedule(self):
+        values = [self.window_start, self.window_end, *self.news_publish_times]
+        if any(t.tzinfo is not None or t.second or t.microsecond for t in values):
+            raise ValueError("Укажите время в часах и минутах по Ташкенту, без часового пояса")
+        if self.window_start >= self.window_end:
+            raise ValueError("Choose a nonempty same-day release window in Asia/Tashkent")
+        times = sorted(self.news_publish_times)
+        if times:
+            if len(times) != self.news_daily_limit or len(set(times)) != len(times):
+                raise ValueError("Для каждого поста нужно отдельное время: число времён должно совпадать с лимитом")
+            if any(not self.window_start <= t < self.window_end for t in times):
+                raise ValueError("Все времена должны быть внутри окна публикаций; конец окна не включён")
+            minutes = [t.hour * 60 + t.minute for t in times]
+            gaps = [b - a for a, b in zip(minutes, [*minutes[1:], minutes[0] + 1440])]
+            if min(gaps) < self.min_interval_minutes:
+                raise ValueError("Времена слишком близко: учитывайте минимальный интервал между публикациями")
+        self.news_publish_times = times
+        return self
+
+
+class Account(PublicationSchedule):
     platform: Literal["telegram", "instagram", "facebook", "linkedin"]
     label: str = Field(min_length=1, max_length=120)
     external_id: str = Field(default="", max_length=200)
@@ -113,9 +141,6 @@ class Account(Input):
     formats: list[Literal["post", "carousel", "image", "video", "story"]] = Field(default_factory=list)
     languages: list[Literal["ru", "uz", "en"]] = Field(default_factory=lambda: ["ru"])
     valid_until: datetime | None = None
-    window_start: time = time(9)
-    window_end: time = time(21)
-    min_interval_minutes: int = Field(default=60, ge=1, le=10080)
     correction_policy: Literal["manual", "authorized_correction"] = "manual"
     paused: bool = False
     personal_profile: bool = False
@@ -132,8 +157,6 @@ class Account(Input):
                 raise ValueError("LinkedIn requires a separately authorized personal profile")
         if self.valid_until and self.valid_until.tzinfo is None:
             raise ValueError("Permission expiry requires a time zone")
-        if self.window_start >= self.window_end:
-            raise ValueError("Choose a nonempty same-day release window in Asia/Tashkent")
         return self
 
 

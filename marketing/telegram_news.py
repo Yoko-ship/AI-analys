@@ -1,14 +1,13 @@
 """The connected Telegram channel supplies the scope for routine news work."""
 from datetime import timedelta
 
-from . import channels, permissions, sources, store as s
+from . import channels, permissions, sources, telegram_schedule, store as s
 from .errors import MarketingError, require_owner
 from .models import Account
 from .permissions import TASHKENT, timestamp
 
 ACTOR = {'id': 'coordinator', 'role': 'coordinator'}
 SOURCE_ID = 'telegram-uzstock-news'
-MAX_DAILY = 2
 
 
 def connect(actor, channel, expected_version, now, account_id=None):
@@ -87,11 +86,7 @@ def assigned(c, account_id, item):
 
 
 def pending(c, account, now):
-    tasks = [task for task in s.list_items(c, 'task') if (task.get('editorial') or {}).get('kind') == 'telegram'
-             and task['production']['targets'][0]['account_id'] == account['id']]
-    today = now.astimezone(TASHKENT).date()
-    return (not any(task['status'] in {'queued', 'running', 'waiting_assets'} for task in tasks)
-            and sum(timestamp(task['editorial']['assigned_at']).astimezone(TASHKENT).date() == today for task in tasks) < MAX_DAILY)
+    return telegram_schedule.plan(c, account, now) is not None
 
 
 def run_one(now):
@@ -100,15 +95,20 @@ def run_one(now):
         for account in accounts(c, now):
             if _retry(c, account, now):
                 return True
-            if not pending(c, account, now):
+            plan = telegram_schedule.plan(c, account, now)
+            if plan is None:
                 continue
-            item = next((row for row in available(c, now) if row['status'] == 'verified' and not assigned(c, account['id'], row)), None)
+            due = max(now, plan['not_before'] or now)
+            item = next((row for row in available(c, now) if row['status'] == 'verified'
+                         and min(timestamp(row['published_at']) + timedelta(hours=24), timestamp(row['expires_at'])) > due
+                         and not assigned(c, account['id'], row)), None)
             if not item:
                 continue
             language = account['languages'][0]
             scope = {'event_id': item['canonical_event_id'], 'rubric': 'news', 'entity': item['entity'],
                      'period': '', 'destination_url': item['destination_url'], 'mode': 'account',
-                     'expires_at': min(timestamp(item['published_at']) + timedelta(hours=24), timestamp(item['expires_at'])).isoformat(),
+                     'not_before': plan['not_before'].isoformat() if plan['not_before'] else None,
+                     'expires_at': min(plan['expires_at'], timestamp(item['published_at']) + timedelta(hours=24), timestamp(item['expires_at'])).isoformat(),
                      'targets': [{'account_id': account['id'], 'languages': [language], 'primary_language': language, 'format': 'post'}]}
             binding = {'kind': 'telegram', 'account_version': account['version'], 'assigned_at': now.isoformat(),
                        'aliases': automation._aliases([item]), 'priority': 'normal'}
@@ -150,7 +150,8 @@ def guard(c, task, now):
     account = next((a for a in accounts(c, now) if a['id'] == account_id), None)
     if not account or account['version'] != task['editorial']['account_version']:
         raise MarketingError('TELEGRAM_NEWS_CHANGED', 'Telegram channel settings or connection changed; this task is stopped.')
-    if timestamp(task['production']['expires_at']) <= now:
+    if (timestamp(task['production']['expires_at']) <= now
+            or timestamp(task['editorial']['assigned_at']).astimezone(TASHKENT).date() != now.astimezone(TASHKENT).date()):
         raise MarketingError('TELEGRAM_NEWS_EXPIRED', 'This news item is no longer current.')
     for key, version in task['evidence_versions'].items():
         item = sources.current_evidence(c, key)
@@ -160,4 +161,5 @@ def guard(c, task, now):
 
 def status(c, now):
     enabled = [a for a in s.list_items(c, 'account') if a['platform'] == 'telegram' and a.get('automatic_news')]
-    return {'enabled': bool(enabled), 'ready': bool(accounts(c, now)), 'max_daily': MAX_DAILY}
+    return {'enabled': bool(enabled), 'ready': bool(accounts(c, now)),
+            'max_daily': enabled[0].get('news_daily_limit', 2) if enabled else 2}

@@ -14,7 +14,10 @@ export function useMarketing(apiFetch) {
   const read = useCallback(async (path, options = {}) => {
     const response = await apiFetch(`/api/admin/ai-marketing${path}`, options);
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(reasonText(body.error?.message) || 'Не удалось выполнить действие. Попробуйте ещё раз.');
+    if (!response.ok) {
+      const fields = body.error?.field_errors?.map(field => reasonText(field.message.replace(/^Value error, /, '')));
+      throw new Error(fields?.join(' ') || reasonText(body.error?.message) || 'Не удалось выполнить действие. Попробуйте ещё раз.');
+    }
     return body;
   }, [apiFetch]);
   const accept = useCallback((value, revision) => {

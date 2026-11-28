@@ -16,6 +16,7 @@ function AccountForm({ platform, account, rubrics, request, busy }) {
       window_start: fields.get('window_start'), window_end: fields.get('window_end'),
       min_interval_minutes: Number(fields.get('min_interval_minutes')), correction_policy: 'manual',
       personal_profile: fields.has('personal_profile'), paused: account?.paused || false,
+      news_daily_limit: account?.news_daily_limit || 2, news_publish_times: account?.news_publish_times || [],
       automatic_news: account?.automatic_news || false };
     await request(`/accounts/${account?.id || platform.id}`, { method: 'PUT', body: { data: value, expected_version: account?.version || 0 }, message: 'Правила аккаунта сохранены. Подключение проверяется отдельно.' });
   }
@@ -35,6 +36,7 @@ function AccountForm({ platform, account, rubrics, request, busy }) {
       <Field label="Интервал между публикациями · минуты" name="min_interval_minutes" type="number" min="1" max="10080" defaultValue={account?.min_interval_minutes || 60} required />
       <Field label="Начало окна · Ташкент" name="window_start" type="time" defaultValue={account?.window_start?.slice(0, 5) || '09:00'} required />
       <Field label="Конец окна · Ташкент" name="window_end" type="time" defaultValue={account?.window_end?.slice(0, 5) || '21:00'} required /></div>
+    {platform.id === 'telegram' && account?.automatic_news && <p className="mkt-muted">Количество автоматических новостей и время каждого поста меняются в «Обзор команды → Telegram → Расписание публикаций».</p>}
     {platform.id === 'linkedin' && <label className="mkt-checkbox"><input type="checkbox" name="personal_profile" defaultChecked={account?.personal_profile} required={mode !== 'draft'} />Разрешаю этот личный профиль отдельно от корпоративных каналов</label>}
     <p className="mkt-muted">Правила относятся только к органическим публикациям в указанном аккаунте. Реклама и личные сообщения требуют отдельного решения.</p>
     <button className="mkt-primary" disabled={busy}>Сохранить правила аккаунта</button>

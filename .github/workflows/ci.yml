@@ -1504,6 +1504,8 @@ jobs:
               worker = store.get(c, 'runtime', 'worker', required=False) or {}
               print(json.dumps({
                   'telegram_accounts': [{**{k: a.get(k) for k in ('id', 'mode', 'automatic_news', 'paused', 'valid_until')},
+                                         'news_daily_limit': a.get('news_daily_limit', 2),
+                                         'news_publish_times': a.get('news_publish_times', []),
                                          'connected': channels.setup(a)['ready']} for a in accounts],
                   'news_source_status': source.get('status') if source else None,
                   'worker_last_completed_at': worker.get('last_completed_at'),

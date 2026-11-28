@@ -108,12 +108,14 @@ def test_legacy_upgrade_respects_stopped_or_unverified_channels(monkeypatch, blo
 
 
 @pytest.mark.parametrize('legacy', [False, True])
-def test_news_review_and_generation_publish_once_without_per_task_setup(monkeypatch, legacy):
+@pytest.mark.parametrize('dispatch_minute', [None, 30, 46])
+def test_news_review_and_generation_publish_once_without_per_task_setup(monkeypatch, legacy, dispatch_minute):
     import json
     from marketing import news_review, worker
     from test_marketing_agents import output
     peer = TelegramPeer(monkeypatch)
-    saved = account(automatic_news=True, valid_until=None)
+    schedule = {'news_daily_limit': 1, 'news_publish_times': ['13:30']} if dispatch_minute else {}
+    saved = account(automatic_news=True, valid_until=None, **schedule)
     saved = channels.probe(OWNER, saved['id'], saved['version'], NOW)
     if legacy:
         with store.connection(write=True) as c:
@@ -139,8 +141,13 @@ def test_news_review_and_generation_publish_once_without_per_task_setup(monkeypa
     for minute in range(5):
         worker.tick(model=Team(), fetch=lambda source: [material()], now=NOW + timedelta(minutes=minute))
     assert len(rows('task')) == 1 and rows('goal') == [] and rows('strategy') == []
-    assert rows('candidate')[0]['status'] == 'published'
-    assert len([call for call in peer.calls if call[0] == 'sendMessage']) == 1
+    if dispatch_minute:
+        assert rows('candidate')[0]['status'] == 'scheduled'
+        assert not [call for call in peer.calls if call[0] == 'sendMessage']
+        worker.tick(model=Team(), fetch=lambda source: [material()], now=NOW + timedelta(minutes=dispatch_minute))
+    expected = 0 if dispatch_minute == 46 else 1
+    assert (rows('candidate')[0]['status'] == 'published') is bool(expected)
+    assert len([call for call in peer.calls if call[0] == 'sendMessage']) == expected
 
 
 def test_news_processing_pause_and_changed_evidence_stop_background_work(monkeypatch):
@@ -204,9 +211,10 @@ def test_connection_form_only_needs_channel_and_reuses_saved_mode(monkeypatch):
         {'publication_type': 'organic', 'rubric': 'quarterly', 'format': 'post', 'language': 'ru'}, NOW)[0]
 
 
-def test_daily_limit_is_persistent_and_manual_tasks_also_prevent_duplicates(monkeypatch):
+@pytest.mark.parametrize('limit', [1, 2, 3])
+def test_daily_limit_is_persistent_and_manual_tasks_also_prevent_duplicates(monkeypatch, limit):
     from marketing import telegram_news, agents
-    connected(monkeypatch)
+    connected(monkeypatch, news_daily_limit=limit)
     telegram_news.ensure_source(NOW)
     source, = rows('source')
     sources.import_materials(OWNER, source['id'], [material(str(i), url=f'https://example.test/news/{i}') for i in range(4)], now=NOW)
@@ -217,14 +225,14 @@ def test_daily_limit_is_persistent_and_manual_tasks_also_prevent_duplicates(monk
         production={'event_id': 'owner-custom-event-key', 'rubric': 'news', 'mode': 'draft',
                     'expires_at': (NOW + timedelta(hours=4)).isoformat(),
                     'targets': [{'account_id': 'tg', 'languages': ['ru'], 'primary_language': 'ru', 'format': 'post'}]})
-    for _ in range(2):
+    for _ in range(limit):
         assert telegram_news.run_one(NOW)
         with store.connection(write=True) as c:
             task = next(t for t in store.list_items(c, 'task') if t['status'] == 'queued' and t.get('editorial'))
             assert original['id'] not in task['evidence_versions']
             store.put(c, 'task', {**task, 'status': 'complete'}, actor=OWNER, action='test_completed', expected_version=task['version'])
     assert not telegram_news.run_one(NOW + timedelta(minutes=2))
-    assert len(rows('task')) == 3
+    assert len(rows('task')) == limit + 1
 
 
 @pytest.mark.parametrize('quote,supported,verified', [

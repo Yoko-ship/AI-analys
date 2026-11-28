@@ -8,7 +8,7 @@ from pydantic import Field, ValidationError
 from admin_control.api import ControlRoute, reply
 from . import agents, catalog, channels, content, delivery, experiments, founder, goals, incidents, media, model_runtime, permissions, production, publishing, reports, reports_api, sources, store as s
 from .errors import MarketingError, require_owner
-from .models import Account, Candidate, ChartRef, Evidence, Goal, Input, Strategy
+from .models import Account, Candidate, ChartRef, Evidence, Goal, Input, PublicationSchedule, Strategy
 from .production_models import ProductionBrief
 from . import reconciliation, visibility, website, trends, execution, automation, editorial_experiments, recovery
 
@@ -277,6 +277,21 @@ def connect_telegram(request: Request, body: TelegramConnect):
 
 class TelegramPause(Version):
     paused: bool
+
+
+class TelegramSchedule(Version):
+    data: PublicationSchedule
+
+
+@router.put('/telegram/{account_id}/schedule')
+def save_telegram_schedule(request: Request, account_id: str, body: TelegramSchedule):
+    with s.connection() as c:
+        account = s.get(c, 'account', account_id)
+    if account['platform'] != 'telegram':
+        raise MarketingError('ACCOUNT_PLATFORM', 'Choose a Telegram channel.', 422)
+    value = {key: account[key] for key in Account.model_fields if key in account}
+    return reply(request, {'item': permissions.save_account(actor(request), account_id,
+                  {**value, **body.data.model_dump(mode='json')}, body.expected_version)})
 
 
 @router.post('/telegram/{account_id}/pause')
