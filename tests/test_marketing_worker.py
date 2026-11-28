@@ -19,7 +19,10 @@ def test_worker_processes_a_saved_task_without_an_open_browser(monkeypatch, prov
 
         monkeypatch.delenv("MARKETING_MODEL_PROVIDER", raising=False)
         monkeypatch.delenv("MARKETING_MODEL", raising=False)
+        monkeypatch.delenv("MARKETING_CODEX_REASONING", raising=False)
         monkeypatch.setenv("NEWS_AI_PROVIDER", "codex")
+        monkeypatch.setenv("NEWS_CODEX_MODEL", "gpt-6-luna")
+        monkeypatch.setenv("NEWS_CODEX_REASONING", "low")
         monkeypatch.setenv("NEWS_CODEX_GATEWAY_URL", "http://codex.internal:8080")
         monkeypatch.setenv("CODEX_GATEWAY_SECRET", "test-gateway-secret")
         monkeypatch.setattr(worker.model_runtime.shutil, "which", lambda _name: None)
@@ -35,6 +38,8 @@ def test_worker_processes_a_saved_task_without_an_open_browser(monkeypatch, prov
 
         def post(url, **options):
             assert url == "http://codex.internal:8080/v1/json"
+            assert options["json"]["model"] == "gpt-6.1-terra"
+            assert options["json"]["effort"] == "medium"
             return proxy.post("/v1/json", json=options["json"], headers=options["headers"])
 
         monkeypatch.setattr(codex_client.CodexClient, "complete_json", complete)
