@@ -28,6 +28,13 @@ Word files with LibreOffice Writer and images with ReportLab, then uses the
 existing page parser and bounded OCR. Converted documents always enable OCR
 because Word files can contain scanned pages. Conversion does not approve data.
 
+Statement dates accept written months, ISO dates and unambiguous numeric dates
+with dots, slashes or hyphens. Invalid dates and ambiguous day/month order remain
+unresolved. Parsing uses a normalized copy; source evidence keeps its printed
+text. Years above the statement heading cannot substitute for table columns.
+When structured results tie, OCR selection prefers more distinct readable
+financial rows with numbers, even if their dates or units are still unresolved.
+
 Renderings are separate immutable artifacts linked in `ingest_renditions` by
 original hash and converter version. Candidate evidence records both hashes;
 cached renderings preserve stable page references on reprocessing. Published

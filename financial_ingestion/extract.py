@@ -126,9 +126,12 @@ def page_texts(payload, *, ocr=False):
                       if number in p['statement_pages']]
         mismatches = sum(bool({'BALANCE_MISMATCH', 'INCOME_MISMATCH', 'INCOME_RECONCILIATION_INVALID'} & set(validation.validate(p, page_count=evidence['page_count'])['errors']))
                          for p in candidates)
+        # Readable financial rows still carry evidence when dates or units are unresolved.
+        rows = {row[0] for line in statements.statement_lines(text)
+                if (row := statements.row_label(line)) and re.search(r'\d', row[2])}
         return (sum(f['page']==number for p in candidates for f in p['figures'].values()) - 8*mismatches,
                 sum(bool(p.get('income_reconciliation')) for p in candidates),
-                sum(bool(p['classification']['unit_scale']) for p in candidates))
+                sum(bool(p['classification']['unit_scale']) for p in candidates), len(rows))
 
     def complete(number):
         candidates = [p for p in statements.proposals(pages, evidence) if number in p['statement_pages']]

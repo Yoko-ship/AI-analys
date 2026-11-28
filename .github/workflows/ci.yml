@@ -296,13 +296,18 @@ jobs:
             -v "$PWD/tests/fixtures/financial_documents:/fixtures:ro" uz-stock-bot - <<'PY'
           import hashlib, json
           from pathlib import Path
-          from financial_ingestion import formats, extract
+          from financial_ingestion import formats, extract, statements
           for source in json.loads(Path('/fixtures/sources.json').read_text()):
               original = Path('/fixtures', source['fixture']).read_bytes()
               assert hashlib.sha256(original).hexdigest() == source['sha256']
               pdf = formats.to_pdf(original, formats.identify(original))
               pages, evidence = extract.page_texts(pdf, ocr=True)
               assert evidence['page_count'] > 0 and not evidence['ocr_errors'], evidence
+              candidates = statements.proposals(pages, evidence)
+              for period, figures in source.get('expected_figures', {}).items():
+                  candidate = next(c for c in candidates if c['classification']['period_end'] == period)
+                  for field, value in figures.items():
+                      assert candidate['figures'][field]['raw_value'] == value, (source['fixture'], period, field)
               print(source['fixture'], evidence['page_count'], 'pages extracted')
           PY
       - name: Run the nginx edge configuration in a real nginx

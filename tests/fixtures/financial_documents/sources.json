@@ -27,6 +27,10 @@
     "sha256": "acf6561bd3122b5c178fc8c0b8ab43645b38d98b1d63d2fdf9d740c87cb8c792",
     "signature": "d0cf11e0a1b11ae10000000000000000",
     "detected_format": "OLE Word document",
-    "fixture": "otngk.doc"
+    "fixture": "otngk.doc",
+    "expected_figures": {
+      "2016-12-31": {"total_assets": "94208639", "cash": "890240", "total_equity": "28491476"},
+      "2015-12-31": {"total_assets": "107303999", "cash": "223079", "total_equity": "29349334"}
+    }
   }
 ]
