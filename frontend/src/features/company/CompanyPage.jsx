@@ -1,4 +1,5 @@
 import { trackFeature } from "../../lib/track.js";
+import { useProductObservation } from '../../lib/useProductObservation.js';
 import { prepareMarketRows } from "../../lib/marketData.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import React from "react";
@@ -18,12 +19,14 @@ import { QuickCompareStrip } from "../../shared/QuickCompareStrip.jsx";
 import { CompanyDividendsTab } from "./Financials.jsx";
 import { IssuerFinancials } from "./IssuerFinancials.jsx";
 import { CompanyShareholders } from './CompanyShareholders.jsx';
+import { readReport, reportRequest } from './reportLinks.js';
 
 function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, isAdmin = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
   // A data-quality row can link an administrator directly to the affected
   // financial view. Normal company links carry no query and still open обзор.
   const companyQuery = new URLSearchParams(window.location.search);
+  const insightQuery = reportRequest(window.location.search, lang);
   const qualityIssue = companyQuery.get("qualityIssue") || "";
   const qualityPeriod = companyQuery.get("qualityPeriod") || "";
   const qualityField = companyQuery.get("qualityField") || "";
@@ -68,6 +71,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // Window + absolute price metrics from /api/company/{ticker}/metrics.
   const [metrics, setMetrics] = React.useState(null);
   const [secInfo, setSecInfo] = React.useState((securitiesMap || {})[ticker] || null);
+  const [observedIssuer, setObservedIssuer] = React.useState(null);
+  const issuerRef = React.useRef(null);
+  useProductObservation(issuerRef, { kind: 'issuer_open', ticker, language: lang }, observedIssuer === ticker);
   const [infoLoading, setInfoLoading] = React.useState(false);
   const [companyData, setCompanyData] = React.useState(null);
   // Legal and tax data is intentionally page-lazy. It is not included in the
@@ -110,22 +116,18 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       setInsightOpen(true);
     } else if (insightReport && !insightLoading && !insightDetailLoading) {
       setInsightDetailLoading(true);
-      fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=nsbu&scope=separate&lang=${lang}`)
-        .then(async (response) => {
-          const body = await response.json().catch(() => null);
-          if (!response.ok || !body?.ok || !body?.headline) throw new Error("company insight unavailable");
-          return body;
-        })
+      fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?${insightQuery}`)
+        .then(readReport)
         .then((body) => {
           setInsightReport(body);
           setInsightOpen(true);
         })
-        .catch(() => setInsightError(true))
+        .catch(error => setInsightError(error.code || true))
         .finally(() => setInsightDetailLoading(false));
     } else if (!insightLoading && !insightDetailLoading) {
       setInsightRetry((value) => value + 1);
     }
-  }, [insightReport, insightLoading, insightDetailLoading, ticker, lang]);
+  }, [insightReport, insightLoading, insightDetailLoading, ticker, insightQuery]);
 
   // A shared report link (/company/{T}?report=ai) opens the report itself,
   // once, as soon as its summary has loaded.
@@ -333,11 +335,13 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     let alive = true;
     const local = (securitiesMap || {})[ticker];
     if (local) setSecInfo(local);
+    setObservedIssuer(local?.name || local?.company_name ? ticker : null);
     setInfoLoading(true);
     fetch(`/api/securities/${encodeURIComponent(ticker)}/info?language=${lang}`)
       .then((r) => r.json())
       .then((d) => {
         if (!alive || !d.ok) return;
+        if (d.security?.name || d.security?.company_name) setObservedIssuer(ticker);
         setSecInfo({
           ...(d.security || {}),
           company_description: d.wiki?.extract || d.security?.company_description || null,
@@ -393,17 +397,18 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     setInsightError(false);
     setInsightReport(null);
     setInsightOpen(false);
-    fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=nsbu&scope=separate&lang=${lang}&summary=true`)
-      .then(async (response) => {
-        const body = await response.json().catch(() => null);
-        if (!response.ok || !body?.ok || !body?.headline) throw new Error("company insight unavailable");
-        return body;
-      })
+    if (!insightQuery) {
+      setInsightError('REPORT_VERSION_UNAVAILABLE');
+      setInsightLoading(false);
+      return undefined;
+    }
+    fetch(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?${insightQuery}&summary=true`)
+      .then(readReport)
       .then((body) => { if (alive) setInsightReport(body); })
-      .catch(() => { if (alive) setInsightError(true); })
+      .catch(error => { if (alive) setInsightError(error.code || true); })
       .finally(() => { if (alive) setInsightLoading(false); });
     return () => { alive = false; };
-  }, [ticker, lang, insightRetry]);
+  }, [ticker, insightQuery, insightRetry]);
 
   if (!ticker) return null;
   const sec = secInfo || (securitiesMap || {})[ticker] || {};
@@ -453,7 +458,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   ];
   return (
     <div className="company-page">
-      <div className="company-page-header">
+      <div className="company-page-header" ref={issuerRef}>
         <button className="company-page-back" type="button" onClick={onBack}>
           ← {lang === "ru" ? "Назад" : lang === "uz" ? "Orqaga" : "Back"}
         </button>
@@ -505,6 +510,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       <div className="company-page-body">
         {tab === "overview" && (
           <CompanyInsightCard
+            ticker={ticker}
             report={insightReport}
             loading={insightLoading}
             error={insightError}

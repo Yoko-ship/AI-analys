@@ -126,6 +126,9 @@ async def _on_startup(app) -> None:
         _start_task(app, _sector_analysis_loop(), "report-worker")
     if os.getenv("ADMIN_CONTROL_WORKER", "1") == "1":
         _start_task(app, _admin_control_loop(), "admin-control-worker")
+    if os.getenv("MARKETING_WORKER", "1") == "1":
+        from marketing.worker import run_loop
+        _start_task(app, run_loop(), "marketing-worker")
 
 
 def _start_task(app, coroutine, name):

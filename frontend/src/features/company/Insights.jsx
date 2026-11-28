@@ -4,12 +4,17 @@ import { ReportAvailability, VerifiedReport } from "../../shared/VerifiedReport.
 import { createPortal } from "react-dom";
 import { SharePanel, ShareIcon, canShareNatively, shareNatively } from "../../shared/Share.jsx";
 import { localizedPath } from "../../lib/languagePath.js";
+import { reportLink } from './reportLinks.js';
+import { useProductObservation } from '../../lib/useProductObservation.js';
 
 const COMPANY_INSIGHT_TX = {
   ru: {
     details: "Открыть полный анализ",
     retry: "Повторить",
+    companyPage: "Открыть страницу компании",
     unavailable: "Краткий AI-вывод сейчас недоступен.",
+    changed: "Опубликованный разбор изменился. Эта ссылка относится к прежней версии; откройте актуальный разбор со страницы компании.",
+    versionUnavailable: "Указанная версия разбора недоступна или параметры ссылки не совпадают с ней.",
     loading: "Формируем краткий финансовый вывод…",
     title: "AI-финансовый отчёт",
     close: "Закрыть AI-финансовый отчёт",
@@ -23,7 +28,10 @@ const COMPANY_INSIGHT_TX = {
   uz: {
     details: "To‘liq tahlilni ochish",
     retry: "Qayta urinish",
+    companyPage: "Kompaniya sahifasini ochish",
     unavailable: "Qisqa AI xulosasi hozir mavjud emas.",
+    changed: "E’lon qilingan tahlil o‘zgardi. Havola oldingi versiyaga tegishli; joriy tahlilni kompaniya sahifasidan oching.",
+    versionUnavailable: "Ko‘rsatilgan tahlil versiyasi mavjud emas yoki havola parametrlari unga mos kelmaydi.",
     loading: "Qisqa moliyaviy xulosa tayyorlanmoqda…",
     title: "AI moliyaviy hisobot",
     close: "AI moliyaviy hisobotini yopish",
@@ -37,7 +45,10 @@ const COMPANY_INSIGHT_TX = {
   en: {
     details: "Open full analysis",
     retry: "Retry",
+    companyPage: "Open company page",
     unavailable: "The short AI insight is currently unavailable.",
+    changed: "The published analysis changed. This link refers to an earlier version; open the current analysis from the company page.",
+    versionUnavailable: "This analysis version is unavailable or the link parameters do not match it.",
     loading: "Preparing a short financial insight…",
     title: "AI financial report",
     close: "Close AI financial report",
@@ -80,7 +91,7 @@ function companyInsightTeaser(report) {
   return { headline, verdict };
 }
 
-function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef, lang }) {
+function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef, lang, ticker }) {
   const tx = COMPANY_INSIGHT_TX[lang] || COMPANY_INSIGHT_TX.ru;
   const teaser = companyInsightTeaser(report);
   const isReadable = report && ["available", "stale"].includes(report.status);
@@ -93,7 +104,10 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
         ) : report?.status && !isReadable && !error ? (
           <Suspense fallback={null}><ReportAvailability report={report} lang={lang} /></Suspense>
         ) : error ? (
-          <p>{tx.unavailable}</p>
+          <>
+            <p>{error === 'REPORT_VERSION_CHANGED' ? tx.changed : error === 'REPORT_VERSION_UNAVAILABLE' ? tx.versionUnavailable : tx.unavailable}</p>
+            {ticker && ['REPORT_VERSION_CHANGED', 'REPORT_VERSION_UNAVAILABLE'].includes(error) && <p><a href={localizedPath(`/company/${encodeURIComponent(ticker)}`, lang)}>{tx.companyPage}</a></p>}
+          </>
         ) : (
           <>
             <p>{teaser.headline}</p>
@@ -121,7 +135,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
   const [shareOpen, setShareOpen] = React.useState(false);
   // The link opens this same report, in the language it is read in: CompanyPage
   // reads ?report=ai on load, the /uz prefix opens it in Uzbek.
-  const shareUrl = `${window.location.origin}${localizedPath(`/company/${encodeURIComponent(ticker)}`, lang)}?report=ai`;
+  const shareUrl = `${window.location.origin}${reportLink(ticker, lang, report)}`;
   const shareTitle = `${tx.title} ${ticker} | UZStock`;
   const shareText = [`${tx.title} ${ticker}`, companyInsightTeaser(report).headline || report?.headline].filter(Boolean).join(": ");
   const openShare = () => {
@@ -149,6 +163,9 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
     : report?.sections?.length
       ? report.sections
       : (report?.paragraphs || []).map((text, index) => ({ id: `section-${index}`, text }));
+  useProductObservation(dialogRef, { kind: 'report_open', ticker, language: report?.language || lang,
+    standard: report?.standard, scope: report?.scope || 'separate', period: report?.period, version: report?.version },
+  ['available', 'stale'].includes(report?.status) && narrativeSections.length > 0 && !report?.deferred_full_report);
 
   React.useEffect(() => {
     const previousOverflow = document.body.style.overflow;

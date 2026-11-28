@@ -828,8 +828,14 @@ def issuer_financial_analysis(issuer_id: str, standard: Literal['nsbu', 'ifrs']=
 
 
 @router.get('/issuers/{issuer_id}/ai-report')
-def issuer_ai_report(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...), period: str | None=Query(default=None, pattern='^\\d{4}(?:Q[1-4])?$'), scope: Literal['separate', 'consolidated']='separate', lang: Literal['ru', 'uz', 'en']='ru', summary: bool=False) -> dict[str, Any]:
+def issuer_ai_report(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...), period: str | None=Query(default=None, pattern='^\\d{4}(?:Q[1-4])?$'), scope: Literal['separate', 'consolidated']='separate', lang: Literal['ru', 'uz', 'en']='ru', summary: bool=False, version: str | None=Query(default=None, min_length=1, max_length=200, pattern='^[A-Za-z0-9_-]+$')) -> dict[str, Any]:
     issuer = financials.resolve_issuer(issuer_id)
+    if isinstance(version, str):
+        from reporting.links import LinkUnavailable, pinned
+        try:
+            return pinned(issuer, standard, period, scope, lang, version, summary=summary)
+        except LinkUnavailable as exc:
+            raise HTTPException(status_code=exc.status, detail={"code": exc.code}) from None
     if not summary:
         return _sector_ai_report(issuer, standard, period, scope, lang)
     snapshot = financials.financial_snapshot(issuer, standard, period, scope)

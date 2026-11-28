@@ -73,6 +73,8 @@ def init_db() -> bool:
         logger.warning("DATABASE_URL is not configured; web analytics is disabled")
         return False
     with _conn() as conn:
+        from product_events import initialize
+        initialize(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS web_events (
@@ -601,7 +603,7 @@ def overview() -> dict[str, Any]:
             conn,
             """
             SELECT AVG(dau) FROM (
-                SELECT ((ts + INTERVAL '5 hour')::date) AS day, COUNT(DISTINCT visitor_id) AS dau
+                SELECT (ts AT TIME ZONE 'Asia/Tashkent')::date AS day, COUNT(DISTINCT visitor_id) AS dau
                 FROM ev WHERE ts >= %s AND ts < %s
                 GROUP BY 1
             ) days
@@ -630,7 +632,7 @@ def overview() -> dict[str, Any]:
         # 14-day daily visitors strip for the header chart.
         daily = conn.execute(
             """
-            SELECT ((ts + INTERVAL '5 hour')::date) AS day,
+            SELECT (ts AT TIME ZONE 'Asia/Tashkent')::date AS day,
                    COUNT(DISTINCT visitor_id) AS visitors,
                    COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
             FROM ev WHERE ts >= %s
@@ -901,7 +903,7 @@ def _daily_report(conn, since: datetime, until: datetime | None) -> dict[str, di
             FROM ev WHERE ts >= %s AND event = 'pageview'
             ORDER BY session_id, ts
         )
-        SELECT ((s.started + INTERVAL '5 hour')::date) AS day,
+        SELECT (s.started AT TIME ZONE 'Asia/Tashkent')::date AS day,
                split_part(split_part(split_part(regexp_replace(lower(COALESCE(f.referrer, '')),
                    '^[a-z][a-z0-9+.-]*://', ''), '/', 1), ':', 1), '?', 1) AS host,
                f.utm_source, f.utm_medium,
@@ -916,7 +918,7 @@ def _daily_report(conn, since: datetime, until: datetime | None) -> dict[str, di
     ).fetchall()
     newcomers = conn.execute(
         """
-        SELECT ((first_seen + INTERVAL '5 hour')::date) AS day, COUNT(*) AS n FROM (
+        SELECT (first_seen AT TIME ZONE 'Asia/Tashkent')::date AS day, COUNT(*) AS n FROM (
             SELECT visitor_id, MIN(ts) AS first_seen FROM ev_all GROUP BY visitor_id
         ) v
         WHERE first_seen >= %s AND first_seen < COALESCE(%s, 'infinity'::timestamptz)
@@ -963,7 +965,7 @@ def audience(days: int = 30, day: str | None = None) -> dict[str, Any]:
         excluded = _scope(conn, until)
         daily = conn.execute(
             """
-            SELECT ((ts + INTERVAL '5 hour')::date) AS day,
+            SELECT (ts AT TIME ZONE 'Asia/Tashkent')::date AS day,
                    COUNT(DISTINCT visitor_id) AS visitors,
                    COUNT(DISTINCT session_id) AS sessions,
                    COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
@@ -1013,7 +1015,7 @@ def audience(days: int = 30, day: str | None = None) -> dict[str, Any]:
         by_day = _daily_report(conn, since, until)
         hourly = conn.execute(
             """
-            SELECT EXTRACT(HOUR FROM ts + INTERVAL '5 hour')::INT AS hour,
+            SELECT EXTRACT(HOUR FROM ts AT TIME ZONE 'Asia/Tashkent')::INT AS hour,
                    COUNT(DISTINCT visitor_id) AS visitors,
                    COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
             FROM ev WHERE ts >= %s
@@ -1270,7 +1272,7 @@ def analysis_usage(days: int = 30) -> dict[str, Any]:
     with _conn() as conn:
         daily = conn.execute(
             """
-            SELECT ((created_at + INTERVAL '5 hour')::date) AS day,
+            SELECT (created_at AT TIME ZONE 'Asia/Tashkent')::date AS day,
                    COUNT(*) AS analyses,
                    COUNT(DISTINCT user_id) AS users,
                    COUNT(*) FILTER (WHERE from_cache) AS cached,

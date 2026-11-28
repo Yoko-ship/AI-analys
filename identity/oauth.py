@@ -4,6 +4,7 @@ import identity.clock as identity_clock
 import identity.credentials as identity_credentials
 import identity.settings as identity_settings
 import identity.users as identity_users
+import identity.registration as identity_registration
 import secrets
 
 
@@ -28,14 +29,15 @@ class Oauth:
         now = identity_clock._utcnow()
         row = conn.execute(
             """
-            INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, last_login_at, is_active)
-            VALUES (%s, %s, NULL, %s, %s, NULL, TRUE)
+            INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, registration_started_at, last_login_at, is_active)
+            VALUES (%s, %s, NULL, %s, %s, %s, NULL, TRUE)
             RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
             """,
             (
                 identity_users._normalize_email(email),
                 full_name or "",
                 password_hash or identity_credentials._password_hash(secrets.token_urlsafe(32)),
+                now,
                 now,
             ),
         ).fetchone()
@@ -120,6 +122,7 @@ class Oauth:
             if existing:
                 token = self.sessions._issue_session(conn, existing["id"])
                 verified_by_provider = bool(email and email_verified)
+                identity_registration.complete(conn, existing["id"])
                 conn.execute(
                     "UPDATE web_users SET last_login_at = %s, email_verified = email_verified OR %s WHERE id = %s",
                     (now, verified_by_provider, existing["id"]),
@@ -166,6 +169,7 @@ class Oauth:
             if verified_by_provider:
                 conn.execute("UPDATE web_users SET email_verified = TRUE WHERE id = %s", (user_id,))
             token = self.sessions._issue_session(conn, user_id)
+            identity_registration.complete(conn, user_id)
             conn.execute(
                 "UPDATE web_users SET last_login_at = %s WHERE id = %s",
                 (now, user_id),

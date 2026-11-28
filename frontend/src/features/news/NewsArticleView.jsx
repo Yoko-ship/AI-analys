@@ -1,4 +1,7 @@
 import { safeHref } from "../../lib/safeHref.js";
+import { useEffect, useRef } from 'react';
+import { useProductObservation } from '../../lib/useProductObservation.js';
+import { clearSearchResult } from '../../lib/productActions.js';
 import { roundedDisplayValue } from "../../lib/format.js";
 import { useNewsArticle } from "./useNewsArticle.js";
 import { EDNEWS_TX, edHeadline, interceptNav, newsRelTime } from "./editorial.jsx";
@@ -214,6 +217,13 @@ export function NewsArticleView({
   // handles a null item by doing nothing, which is what the loading state needs anyway.
 
   const back = <a className="led-back" href={localizedPath(VIEW_PATHS.news, language)} onClick={interceptNav(onBack)}>← {tx.back}</a>;
+  const contentRef = useRef(null);
+  useEffect(() => {
+    if (state.error) clearSearchResult({ news_id: Number(newsId) });
+    return () => clearSearchResult({ news_id: Number(newsId) });
+  }, [newsId, state.error]);
+  useProductObservation(contentRef, { kind: 'news_open', news_id: state.data?.item?.id, language },
+    !state.loading && !state.error && Boolean(state.data?.item?.title));
   if (state.loading) {
     return <div className="news-view led">
         {back}
@@ -260,7 +270,7 @@ export function NewsArticleView({
   const sectors = Array.isArray(item.sectors) ? item.sectors : [];
   const relevancePct = typeof item.relevance_score === "number" ? `${roundedDisplayValue(Math.max(0, Math.min(item.relevance_score, 1)) * 100)}%` : null;
   const toneScore = typeof item.tone_score === "number" ? `${item.tone_score >= 0 ? "+" : ""}${item.tone_score.toFixed(2)}` : "";
-  return <div className="news-view led">
+  return <div ref={contentRef} className="news-view led">
       {back}
       <div className="led-cols">
         <main className="led-main">

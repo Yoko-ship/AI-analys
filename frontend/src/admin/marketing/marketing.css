@@ -1,0 +1,124 @@
+.ai-marketing-workspace { --mkt-accent: #b3df80; min-width: 0; font-size: 1rem; line-height: 1.55; }
+.ai-marketing-workspace *, .mkt-dialog * { box-sizing: border-box; }
+.ai-marketing-workspace h2, .ai-marketing-workspace h3, .ai-marketing-workspace h4, .mkt-dialog h3 { margin: 0; line-height: 1.3; }
+.ai-marketing-workspace h2 { font-size: 1.75rem; letter-spacing: -.035em; }
+.ai-marketing-workspace h3, .mkt-dialog h3 { font-size: 1.12rem; }
+.ai-marketing-workspace h4 { font-size: 1rem; }
+.ai-marketing-workspace p { margin: .7rem 0; }
+.ai-marketing-workspace button, .mkt-dialog button { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: .55rem .8rem; font: inherit; font-size: .875rem; cursor: pointer; min-height: 40px; }
+.ai-marketing-workspace button:hover, .mkt-dialog button:hover { border-color: var(--accent); }
+.ai-marketing-workspace :focus-visible, .mkt-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ai-marketing-workspace button:disabled { opacity: .55; cursor: wait; }
+.ai-marketing-workspace .mkt-primary { background: var(--mkt-accent); color: #17251d; border-color: var(--mkt-accent); font-weight: 700; }
+.mkt-topline, .mkt-row, .mkt-title, .mkt-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem; }
+.mkt-between, .mkt-topline, .mkt-title { justify-content: space-between; }
+.mkt-topline { color: var(--muted); font-size: .875rem; padding: 1rem 0; border-top: 1px solid var(--border); }
+.mkt-nav { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .6rem; max-width: 100%; }
+.mkt-nav button { white-space: nowrap; flex: 0 0 auto; }
+.mkt-nav button[aria-current] { color: var(--text); border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.mkt-title { margin: 1.25rem 0; }
+.mkt-muted, .mkt-field small, .mkt-role small, .mkt-dialog small { color: var(--muted); }
+.mkt-kicker { font-size: .75rem; letter-spacing: .1em; font-weight: 700; }
+.mkt-goal { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.4rem; background: #172c26; color: #f0f8ed; border: 1px solid #41664c; border-radius: 14px; }
+.mkt-goal h3 { font-size: 1.35rem; margin-top: .4rem; }
+.mkt-goal p { margin-bottom: 0; color: #cbdccf; }
+.mkt-goal button { background: #b3df80; color: #17251d; flex-shrink: 0; border-color: #b3df80; }
+.mkt-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; margin: 1rem 0; }
+.mkt-kpis > div { border: 1px solid var(--border); border-radius: 12px; padding: 1rem; background: var(--panel); }
+.mkt-kpis span { display: block; font-size: .875rem; color: var(--muted); }
+.mkt-kpis strong { display: block; font-size: 1.9rem; font-variant-numeric: tabular-nums; margin-top: .3rem; }
+.mkt-columns, .mkt-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.mkt-stack, .mkt-form { display: grid; gap: 1rem; min-width: 0; }
+.mkt-panel { min-width: 0; padding: 1.2rem; border: 1px solid var(--border); background: var(--panel); border-radius: 14px; }
+.mkt-panel > .mkt-row:first-child { margin-bottom: .7rem; }
+.mkt-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.ai-marketing-workspace .mkt-role { display: flex; gap: .6rem; align-items: flex-start; text-align: left; padding: .85rem; }
+.mkt-role strong, .mkt-role small { display: block; }
+.mkt-role small { font-size: .8rem; margin-top: .3rem; }
+.mkt-role-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); flex-shrink: 0; font-size: .75rem; }
+.mkt-status { font-size: .8rem; padding: .2rem .5rem; border: 1px solid var(--border); border-radius: 7px; display: inline-block; white-space: normal; }
+.mkt-status-published, .mkt-status-approved, .mkt-status-verified, .mkt-status-ready { background: #e3f2df; color: #205929; border-color: #9cc396; }
+.mkt-status-skipped, .mkt-status-error, .mkt-status-unknown { background: #fff0dd; color: #7c3b0b; border-color: #dfad76; }
+.mkt-item { padding: .9rem 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.mkt-item:first-of-type { margin-top: .8rem; }
+.mkt-field { display: grid; gap: .35rem; min-width: 0; font-size: .875rem; }
+.mkt-field small { font-size: .8rem; }
+.mkt-field input, .mkt-field textarea, .mkt-field select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; width: 100%; min-width: 0; padding: .65rem .7rem; }
+.mkt-field textarea { min-height: 90px; resize: vertical; }
+.mkt-form { margin-top: 1rem; }
+.mkt-form fieldset { border: 1px solid var(--border); padding: .8rem; border-radius: 9px; min-width: 0; }
+.mkt-form legend { font-size: .875rem; padding: 0 .4rem; }
+.mkt-checks { display: grid; gap: .5rem; font-size: .875rem; }
+.mkt-checks label, .mkt-checkbox { display: flex; align-items: flex-start; gap: .6rem; }
+.mkt-checks input, .mkt-checkbox input { flex: 0 0 auto; margin-top: .3rem; }
+.mkt-callout, .mkt-notice { border: 1px solid var(--border); background: var(--accent-soft); border-radius: 9px; padding: .85rem; margin: 1rem 0; }
+.mkt-error { background: #fff0eb; color: #862d1b; border: 1px solid #e4b5a9; padding: 1rem; border-radius: 9px; margin: .8rem 0; }
+.mkt-dialog { width: min(680px, calc(100% - 32px)); max-height: 85dvh; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); color: var(--text); padding: 1.4rem; font: inherit; }
+.mkt-dialog::backdrop { background: #060d15b8; }
+.mkt-plan, .mkt-scenarios { display: grid; gap: 1.2rem; }
+.mkt-plan { margin-top: 1.2rem; }
+.mkt-plan h4, .mkt-plan-card h4, .mkt-plan-card h5 { margin: 0; font-size: 1rem; line-height: 1.4; }
+.mkt-plan h4 { font-size: 1.05rem; }
+.mkt-plan-card { padding: 1rem; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.mkt-plan-card p, .mkt-plan-card ul { margin: .6rem 0; }
+.mkt-plan-card ul { padding-left: 1.2rem; }
+.mkt-plan-steps { display: grid; gap: .75rem; padding-left: 1.4rem; }
+.mkt-plan > section { min-width: 0; }
+.mkt-history { list-style: none; padding: 0; }
+.mkt-history li { border-top: 1px solid var(--border); padding: 1rem 0; }
+.mkt-history li > small { display: block; overflow-wrap: anywhere; }
+.mkt-conversation { display: grid; gap: 1.2rem; margin-top: 1rem; }
+.mkt-conversation article { display: grid; gap: .7rem; }
+.mkt-message { padding: .9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); overflow-wrap: anywhere; }
+.mkt-message p { white-space: pre-wrap; }
+.mkt-message-owner { border-inline-start: 3px solid var(--accent); }
+.mkt-runtime { padding-bottom: .8rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+.mkt-dialog { overflow-wrap: anywhere; }
+.mkt-dialog button:disabled { opacity: .55; cursor: wait; }
+.mkt-original { margin: 0; padding: 1rem; border-inline-start: 3px solid var(--accent); background: var(--bg); white-space: pre-wrap; max-height: 320px; overflow: auto; }
+.mkt-details { display: grid; grid-template-columns: auto 1fr; gap: .4rem 1rem; margin: 0; font-size: .875rem; }
+.mkt-details dt { color: var(--muted); }
+.mkt-details dd { margin: 0; }
+.mkt-report-decisions h5 { font-size: 1rem; line-height: 1.5; margin: 1rem 0 .65rem; }
+.mkt-experiment-result { margin-top: 1rem; gap: .8rem; }
+.mkt-experiment-result h5 { margin: 0; font-size: 1rem; line-height: 1.5; }
+.mkt-experiment-result > p { margin: 0; }
+.mkt-experiment-result table { min-width: 480px; }
+.mkt-experiment-result th[scope="row"] { min-width: 105px; overflow-wrap: normal; }
+.mkt-table-wrap { overflow: auto; max-width: 100%; }
+.mkt-table-wrap table { border-collapse: collapse; width: 100%; font-size: .875rem; text-align: start; }
+.mkt-table-wrap caption { text-align: start; font-weight: 700; margin-bottom: .5rem; }
+.mkt-table-wrap th, .mkt-table-wrap td { padding: .55rem; border-bottom: 1px solid var(--border); text-align: start; overflow-wrap: anywhere; }
+.mkt-table-wrap .mkt-competitor-facts th[scope="row"] { overflow-wrap: normal; vertical-align: top; }
+.mkt-table-wrap .mkt-theme-table th { overflow-wrap: normal; vertical-align: top; }
+.mkt-post-preview { border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin: .8rem 0; background: var(--bg); }
+.mkt-post-preview p { white-space: pre-wrap; }
+.mkt-content-card { padding: 1.25rem 0; }
+.mkt-filter { font-size: .875rem; display: flex; gap: .5rem; align-items: center; }
+.mkt-filter select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: .5rem; min-width: 0; max-width: 100%; }
+.ai-marketing-workspace summary, .mkt-dialog summary { cursor: pointer; padding: .5rem 0; }
+.mkt-flow { display: flex; gap: .5rem; flex-wrap: wrap; list-style: none; padding: 0; font-size: .8rem; }
+.mkt-flow li { border: 1px solid var(--border); border-radius: 8px; padding: .5rem; }
+.mkt-flow span { color: var(--muted); margin-inline-end: .4rem; }
+.mkt-flow li[aria-current] { border-color: var(--accent); background: var(--accent-soft); }
+.mkt-media { margin: 0; min-width: 0; }
+.mkt-media img, .mkt-media video { display: block; width: 100%; height: auto; max-height: 65dvh; object-fit: contain; background: #10251f; border-radius: 10px; }
+.mkt-media figcaption { font-size: .875rem; line-height: 1.6; }
+.mkt-download { padding: .6rem .85rem; border: 1px solid var(--border); border-radius: 8px; font-size: .875rem; }
+.mkt-chart-data { max-height: 360px; }
+.mkt-render-jobs { margin-block: .8rem; border-inline-start: 2px solid var(--border); padding-inline-start: 1rem; }
+.mkt-json { max-width: 100%; overflow: auto; font-size: .8rem; padding: .8rem; background: var(--bg); border-radius: 8px; }
+.mkt-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: .8rem; }
+.mkt-metric { min-width: 0; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
+.mkt-metric > strong { display: block; font-size: 1.6rem; font-variant-numeric: tabular-nums; margin: .6rem 0; }
+.mkt-metric details { font-size: .875rem; margin-top: .5rem; }
+.mkt-metric-coverage { margin-top: 1rem; }
+.mkt-metric-coverage h5 { font-size: inherit; margin: 0 0 .5rem; }
+.mkt-metric-coverage p { line-height: 1.55; }
+.mkt-reports .mkt-table-wrap table { min-width: 600px; }
+.mkt-report-comparison .mkt-table-wrap td:not(:first-child) { white-space: nowrap; }
+.mkt-entity-expenses td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mkt-reports .mkt-table-wrap th:first-child { min-width: 150px; }
+@media (max-width: 1000px) { .mkt-roles { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .mkt-columns { grid-template-columns: 1fr; } .mkt-goal { align-items: flex-start; flex-direction: column; } .mkt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mkt-panel { padding: 1rem; } }
+@media (max-width: 440px) { .mkt-fields { grid-template-columns: 1fr; } .mkt-title h2 { font-size: 1.5rem; } }

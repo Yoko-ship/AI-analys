@@ -35,10 +35,14 @@ def test_registration_login_and_reinitialization(pg_store):
     from web_auth import WebAuthStore
     user, token = pg_store.accounts.register_user(" Investor@Example.test ", "example-pass-123", "Investor")
     assert user.email == "investor@example.test"
+    registration = _registration_record(pg_store, user.email)
+    assert registration['registration_started_at'] == user.created_at
+    assert registration['registration_completed_at'] >= user.created_at
     fresh = WebAuthStore(pg_store.database.database_url)
     assert fresh.sessions.get_user_by_token(token).id == user.id
     logged_in, second = fresh.accounts.login_user(user.email, "example-pass-123")
     assert logged_in.id == user.id and second != token
+    assert _registration_record(fresh, user.email)['registration_completed_at'] == registration['registration_completed_at']
     with fresh.database.connect() as conn:
         row = conn.execute("SELECT password_hash FROM web_users WHERE id = %s", (user.id,)).fetchone()
     assert row["password_hash"] != "example-pass-123"
@@ -46,6 +50,161 @@ def test_registration_login_and_reinitialization(pg_store):
         fresh.accounts.login_user(user.email, "wrong-password")
     with pytest.raises(ValueError, match="already registered"):
         fresh.accounts.register_user(user.email.upper(), "example-pass-123")
+
+
+def _registration_record(store, email):
+    with store.database.connect() as conn:
+        return conn.execute(
+            "SELECT email_verified, created_at, registration_started_at, registration_completed_at FROM web_users WHERE email = %s",
+            (email,),
+        ).fetchone()
+
+
+def test_registration_completion_uses_first_proof_not_account_creation(pg_store, monkeypatch):
+    from identity import clock
+    started = datetime(2026, 11, 23, 8, tzinfo=timezone.utc)
+    monkeypatch.setattr(clock, '_utcnow', lambda: started)
+    email = 'registration-timing@example.test'
+    code = pg_store.accounts.start_registration(email, 'example-pass-123')
+    row = _registration_record(pg_store, email)
+    assert row['created_at'] == row['registration_started_at'] == started
+    assert row['registration_completed_at'] is None
+    wrong = '000000' if code != '000000' else '111111'
+    with pytest.raises(ValueError):
+        pg_store.accounts.verify_email_code(email, wrong)
+    assert _registration_record(pg_store, email)['registration_completed_at'] is None
+
+    completed = started + timedelta(minutes=5)
+    monkeypatch.setattr(clock, '_utcnow', lambda: completed)
+    user, token = pg_store.accounts.verify_email_code(email, code)
+    assert user.email_verified and token
+    assert _registration_record(pg_store, email)['registration_completed_at'] == completed
+
+    monkeypatch.setattr(clock, '_utcnow', lambda: started + timedelta(days=1))
+    reset = pg_store.accounts.issue_email_code(email, 'reset')
+    pg_store.accounts.reset_password_with_code(email, reset, 'replacement-pass-456')
+    pg_store.oauth.oauth_login('google', 'timing-1', email, email_verified=True)
+    pg_store.oauth.oauth_login('google', 'timing-1', email, email_verified=True)
+    assert _registration_record(pg_store, email)['registration_completed_at'] == completed
+
+
+@pytest.mark.parametrize('path', ['new_oauth', 'pending_email', 'password_reset'])
+def test_registration_completion_records_each_first_verification_path(pg_store, monkeypatch, path):
+    from identity import clock
+    started = datetime(2026, 11, 23, 8, tzinfo=timezone.utc)
+    monkeypatch.setattr(clock, '_utcnow', lambda: started)
+    email = 'first-proof@example.test'
+    if path in {'pending_email', 'password_reset'}:
+        pg_store.accounts.start_registration(email, 'example-pass-123')
+    if path != 'new_oauth':
+        assert _registration_record(pg_store, email)['registration_completed_at'] is None
+    completed = started + timedelta(minutes=2)
+    monkeypatch.setattr(clock, '_utcnow', lambda: completed)
+    if path == 'password_reset':
+        code = pg_store.accounts.issue_email_code(email, 'reset')
+        pg_store.accounts.reset_password_with_code(email, code, 'replacement-pass-456')
+    else:
+        pg_store.oauth.oauth_login('google', 'proof-1', email, email_verified=True)
+    row = _registration_record(pg_store, email)
+    assert row['email_verified'] and row['registration_completed_at'] == completed
+
+
+def test_oauth_registration_completes_on_provider_identity_even_without_email_proof(pg_store, monkeypatch):
+    from identity import clock
+    started = datetime(2026, 11, 23, 8, tzinfo=timezone.utc)
+    monkeypatch.setattr(clock, '_utcnow', lambda: started)
+    email = 'oauth-identity@example.test'
+    user, token = pg_store.oauth.oauth_login('google', 'identity-1', email, email_verified=False)
+    assert token and not user.email_verified
+    row = _registration_record(pg_store, email)
+    assert row['registration_started_at'] == row['registration_completed_at'] == started
+    monkeypatch.setattr(clock, '_utcnow', lambda: started + timedelta(days=1))
+    pg_store.oauth.oauth_login('google', 'identity-1', email, email_verified=True)
+    assert _registration_record(pg_store, email)['registration_completed_at'] == started
+
+
+@pytest.mark.parametrize('path', ['direct', 'oauth'])
+def test_registration_completion_clock_is_sampled_after_account_and_session_creation(pg_store, monkeypatch, path):
+    from itertools import count
+    from identity import clock
+    started = datetime(2026, 11, 23, 8, tzinfo=timezone.utc)
+    ticks = count()
+    monkeypatch.setattr(clock, '_utcnow', lambda: started + timedelta(seconds=next(ticks)))
+    email = 'clock-order@example.test'
+    if path == 'direct':
+        user, _ = pg_store.accounts.register_user(email, 'example-pass-123')
+    else:
+        user, _ = pg_store.oauth.oauth_login('google', 'clock-1', email, email_verified=True)
+    row = _registration_record(pg_store, email)
+    assert row['registration_completed_at'] > row['registration_started_at'] == user.created_at
+
+
+@pytest.mark.parametrize('path', ['password_reset', 'oauth_link', 'oauth_login'])
+def test_legacy_verified_registration_is_not_redated_by_later_sign_in(pg_store, path):
+    email = 'legacy-proof@example.test'
+    if path == 'oauth_login':
+        user, _ = pg_store.oauth.oauth_login('google', 'legacy-1', email, email_verified=True)
+    else:
+        code = pg_store.accounts.start_registration(email, 'example-pass-123')
+        user, _ = pg_store.accounts.verify_email_code(email, code)
+    with pg_store.database.connect() as conn:
+        conn.execute('UPDATE web_users SET registration_started_at = NULL, registration_completed_at = NULL WHERE id = %s', (user.id,))
+    if path == 'password_reset':
+        code = pg_store.accounts.issue_email_code(email, 'reset')
+        pg_store.accounts.reset_password_with_code(email, code, 'replacement-pass-456')
+    else:
+        pg_store.oauth.oauth_login('google', 'legacy-1', email, email_verified=True)
+    assert _registration_record(pg_store, email)['registration_completed_at'] is None
+
+
+@pytest.mark.parametrize('path', ['email_code', 'oauth_login'])
+def test_legacy_unverified_account_does_not_get_a_guessed_registration_date(pg_store, path):
+    email = 'legacy-unverified@example.test'
+    if path == 'email_code':
+        user, _ = pg_store.accounts.register_user(email, 'example-pass-123')
+        code = pg_store.accounts.start_registration(email, 'example-pass-123')
+    else:
+        user, _ = pg_store.oauth.oauth_login('google', 'unknown-1', email, email_verified=False)
+    with pg_store.database.connect() as conn:
+        conn.execute('UPDATE web_users SET registration_started_at = NULL, registration_completed_at = NULL WHERE id = %s', (user.id,))
+    if path == 'email_code':
+        pg_store.accounts.verify_email_code(email, code)
+    else:
+        pg_store.oauth.oauth_login('google', 'unknown-1', email, email_verified=True)
+    row = _registration_record(pg_store, email)
+    assert row['email_verified'] and row['registration_completed_at'] is None
+
+
+@pytest.mark.parametrize('path', ['email', 'oauth'])
+def test_failed_sign_in_transaction_does_not_record_registration(pg_store, monkeypatch, path):
+    email = 'rollback-proof@example.test'
+    code = pg_store.accounts.start_registration(email, 'example-pass-123')
+
+    def fail_session(*args, **kwargs):
+        raise RuntimeError('simulated session persistence failure')
+
+    monkeypatch.setattr(pg_store.sessions, '_issue_session', fail_session)
+    with pytest.raises(RuntimeError, match='simulated session'):
+        if path == 'email':
+            pg_store.accounts.verify_email_code(email, code)
+        else:
+            pg_store.oauth.oauth_login('google', 'rollback-1', email, email_verified=True)
+    row = _registration_record(pg_store, email)
+    assert not row['email_verified'] and row['registration_completed_at'] is None
+
+
+def test_registration_timestamp_migration_keeps_legacy_history_unknown(pg_store):
+    from web_auth import WebAuthStore
+    email = 'migration-proof@example.test'
+    code = pg_store.accounts.start_registration(email, 'example-pass-123')
+    pg_store.accounts.verify_email_code(email, code)
+    with pg_store.database.connect() as conn:
+        conn.execute('ALTER TABLE web_users DROP COLUMN registration_started_at, DROP COLUMN registration_completed_at')
+    fresh = WebAuthStore(pg_store.database.database_url)
+    assert _registration_record(fresh, email)['registration_completed_at'] is None
+    assert _registration_record(fresh, email)['registration_started_at'] is None
+    again = WebAuthStore(pg_store.database.database_url)
+    assert _registration_record(again, email)['registration_completed_at'] is None
 
 
 def test_saved_comparisons_persist_across_sessions_and_accounts_are_isolated(pg_store):

@@ -1,4 +1,5 @@
 import { t } from "../../shared/i18n.jsx";
+import { trackProductAction } from '../../lib/productActions.js';
 
 export function useFavorites({ session: sessionModule, toasts: toastsModule, preferences: preferencesModule, navigation: navigationModule }) {
   const { token, apiFetch, loadProfile } = sessionModule;
@@ -20,6 +21,7 @@ export function useFavorites({ session: sessionModule, toasts: toastsModule, pre
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not update favorites");
+      if (data.favorited === true) trackProductAction({ kind: 'favorite', ticker: normalized.toUpperCase(), language });
       addToast(`${normalized} ${data.favorited ? "saved" : "removed"}`, "success");
       await loadProfile();
     } catch (error) {

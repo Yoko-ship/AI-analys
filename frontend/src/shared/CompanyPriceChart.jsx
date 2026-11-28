@@ -10,6 +10,7 @@ import { compact as fmtCompact } from "../lib/format.js";
 import { fmtRelVol, peerVolumeAt, relativeVolume } from "./volume.js";
 import { formatChangePercent } from "./format.jsx";
 import LwCanvas from "../charts/LwCanvas.jsx";
+import { useProductObserver } from '../lib/useProductObservation.js';
 import { patternName } from "../lib/patterns.js";
 
 function aggregateCompanyPricePoints(points, interval) {
@@ -114,6 +115,7 @@ const CPC_SYNTHETIC_TYPES = new Set(["kagi", "point_figure", "renko"]);
 function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
                              ticker, compare, compareLoading, compareTools, onExpand, intraday, asOf }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const observeChart = useProductObserver({ kind: 'chart_open', ticker, language: lang });
   const [hover, setHover] = React.useState(null);
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
   const [chartInterval, setChartInterval] = React.useState("D");
@@ -763,7 +765,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       )}
 
       <div className="cpc-plot">
-        <LwCanvas spec={spec} height={chartPx} lang={lang} grid={chartPrefs.grid} crosshair={cursorOn}
+        <LwCanvas spec={spec} height={chartPx} lang={lang} grid={chartPrefs.grid} crosshair={cursorOn} onReady={observeChart}
           pan={!drawMode} viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
           onHover={setHover}
           onClick={onChartClick}

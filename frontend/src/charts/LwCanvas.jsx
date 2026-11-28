@@ -46,7 +46,7 @@ const MIN_VISIBLE_BARS = 12;
  */
 export default function LwCanvas({
   spec, height, lang, grid = true, crosshair = true, pan = true, viewKey, initialView = null,
-  resetToken = 0, focus = null, paneTitles = null, preserveTimeOnPrepend = false, onHover, onClick, onRange, className = "", style, ...rest
+  resetToken = 0, focus = null, paneTitles = null, preserveTimeOnPrepend = false, onHover, onClick, onRange, onReady, className = "", style, ...rest
 }) {
   const boxRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -62,7 +62,7 @@ export default function LwCanvas({
   const [themeTick, setThemeTick] = React.useState(0);
   const locale = lang === "en" ? "en-US" : "ru-RU";
 
-  cbRef.current = { onHover, onClick, onRange };
+  cbRef.current = { onHover, onClick, onRange, onReady };
   specRef.current = spec;
   const paneTitlesRef = React.useRef(paneTitles);
   paneTitlesRef.current = paneTitles;
@@ -335,8 +335,11 @@ export default function LwCanvas({
       applyInitialView();
     }
     reportRange();
+    // The caller can observe a real, populated chart after all series are installed.
+    const stopObservation = live.series.has(spec.main) ? cbRef.current.onReady?.(boxRef.current) : undefined;
 
     return () => {
+      stopObservation?.();
       if (chartRef.current !== chart) return;
       // Read BEFORE the series go: an empty chart has no visible range, and the
       // next pass would fall back to the opening view — zoom lost on every

@@ -34,6 +34,14 @@ def no_geoip_download(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_marketing_workspace(monkeypatch, tmp_path):
+    """An HTTP test must never process the developer's marketing queue."""
+    monkeypatch.setenv("MARKETING_DB", str(tmp_path / "marketing.sqlite3"))
+    monkeypatch.setenv("MARKETING_ENVIRONMENT", "test")
+    monkeypatch.setenv("MARKETING_WORKER", "0")
+
+
+@pytest.fixture(autouse=True)
 def isolated_sector_jobs(monkeypatch, tmp_path):
     """A read may request missing annual bank detail; keep that queue test-local."""
     monkeypatch.setenv('SECTOR_ANALYSIS_DB', str(tmp_path / 'sector-analysis.sqlite3'))

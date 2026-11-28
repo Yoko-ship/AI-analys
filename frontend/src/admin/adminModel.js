@@ -123,6 +123,10 @@ export const SECTIONS = [{
   icon: "news",
   title: ["AI-маркетолог", "AI-marketolog", "AI marketer"]
 }, {
+  key: "ai-marketing",
+  icon: "users",
+  title: ["ИИ-маркетинг", "AI-marketing", "AI marketing"]
+}, {
   key: "feedback",
   icon: "news",
   title: ["Обратная связь", "Fikr-mulohaza", "Feedback"]

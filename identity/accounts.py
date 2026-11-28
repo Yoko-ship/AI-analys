@@ -7,6 +7,7 @@ import identity.clock as identity_clock
 import identity.credentials as identity_credentials
 import identity.settings as identity_settings
 import identity.users as identity_users
+import identity.registration as identity_registration
 import secrets
 
 
@@ -66,14 +67,15 @@ class Accounts:
 
             row = conn.execute(
                 """
-            INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, last_login_at, is_active)
-            VALUES (%s, %s, NULL, %s, %s, NULL, TRUE)
+            INSERT INTO web_users (email, full_name, avatar_data_url, password_hash, created_at, registration_started_at, last_login_at, is_active)
+            VALUES (%s, %s, NULL, %s, %s, %s, NULL, TRUE)
             RETURNING id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, email_verified, tier, subscription_until
                 """,
-                (normalized, full_name, password_encoded, now),
+                (normalized, full_name, password_encoded, now, now),
             ).fetchone()
 
             token = self.sessions._issue_session(conn, row["id"], user_agent, ip_address)
+            identity_registration.complete(conn, row["id"])
             conn.execute(
                 "UPDATE web_users SET last_login_at = %s WHERE id = %s",
                 (now, row["id"]),
@@ -241,6 +243,7 @@ class Accounts:
     def _finish_code_sign_in(self, conn, row, user_agent, ip_address) -> tuple[identity_users.WebUser, str | None]:
         """Mark proven, and sign in unless two-factor still has to be satisfied."""
         now = identity_clock._utcnow()
+        identity_registration.complete(conn, row["id"])
         conn.execute(
             """
             UPDATE web_users SET email_verified = TRUE, last_login_at = %s,

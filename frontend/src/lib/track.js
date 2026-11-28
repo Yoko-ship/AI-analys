@@ -1,4 +1,5 @@
 import CONTROLS from "../../../analytics_controls.json" with { type: "json" };
+import { capturePublicationLanding } from './publicationLanding.js';
 /**
  * track.js — the visit beacon.
  *
@@ -44,6 +45,7 @@ const landingTags = (() => {
   }
 })();
 let tagsPending = Boolean(landingTags);
+const publicationLanding = capturePublicationLanding();
 
 /** «Не считать этот браузер»: the team's own devices stay out of the audience. */
 export function isBrowserExcluded() {
@@ -189,6 +191,7 @@ export function trackPageview({ path, view = "", ticker = "" } = {}) {
       ...(isBrowserExcluded() ? { int: 1 } : {}),
     });
     page = { vid, sid, path, view, ticker: ticker || "", shownAt: visible() ? now : null, ms: 0, scroll: 0 };
+    publicationLanding(productContext, store.getItem(LANGUAGE_KEY));
     measureScroll();
     listen();
   } catch { /* tracking must never break the page */ }
@@ -213,6 +216,18 @@ export function trackFeature(feature, ticker = "") {
       ...(isBrowserExcluded() ? { int: 1 } : {}),
     });
   } catch { /* analytics must not interfere with the action */ }
+}
+
+/** Shared first-party visit identity; product receipts use their own durable endpoint. */
+export function productContext() {
+  try {
+    const store = storage();
+    if (!store || !page) return null;
+    const seen = Number(store.getItem(SEEN_KEY) || 0);
+    if (!seen || Date.now() - seen > IDLE_MS) trackPageview({ path: page.path, view: page.view, ticker: page.ticker });
+    const { sid } = sessionId(store);
+    return { visitor_id: page.vid, session_id: sid, internal: isBrowserExcluded(), token: currentAuthToken };
+  } catch { return null; }
 }
 
 /** The reader moved to a view that is not counted (the admin panel): close the page. */

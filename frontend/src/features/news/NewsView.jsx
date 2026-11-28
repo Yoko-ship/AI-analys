@@ -1,5 +1,6 @@
 import { NEWS_TX, newsRelTime } from "./editorial.jsx";
 import React from "react";
+import { markSearchResult, trackProductAction } from '../../lib/productActions.js';
 import { CorporateEvents } from "./CorporateEvents.jsx";
 import { useTranslationTick } from "./newsTranslation.js";
 import { NewsDeskRow } from "./NewsCards.jsx";
@@ -44,6 +45,13 @@ export function NewsView({
       item.summary_ru, item.summary_en, item.summary_uz, ...(item.tickers || [])].filter(Boolean).join(" ").toLocaleLowerCase().includes(query)) : sourceItems;
   }, [sourceItems, newsSearch]);
   const latest = React.useMemo(() => [...items].sort((a,b)=>String(b.published_at||'').localeCompare(String(a.published_at||''))),[items]);
+  React.useEffect(() => {
+    if (!newsSearch.trim() || loading || error || ['corporate', 'calendar'].includes(tab)) return undefined;
+    // Only the returned feed is searched. No input text, headline or query hash leaves the browser.
+    const timer = setTimeout(() => trackProductAction({ kind: items.length ? 'search' : 'search_empty',
+      query_type: 'other', search_area: 'news_feed', search_scope: 'complete', result_count: items.length, language }), 500);
+    return () => clearTimeout(timer);
+  }, [newsSearch, loading, error, tab, items.length, language]);
   const feedItems=latest;
   const dtx = tx.desk || NEWS_TX.ru.desk;
   const updated = latest[0] && latest[0].published_at ? newsRelTime(latest[0].published_at, language) : "";
@@ -109,7 +117,10 @@ export function NewsView({
                 <span>{dtx.important}</span>
               </div>
               <div className="newsdesk-rows">
-                {feedItems.map((item, index) => <NewsDeskRow key={item.id || item.url || index} item={item} language={language} onOpen={onOpenNews} />)}
+                {feedItems.map((item, index) => <NewsDeskRow key={item.id || item.url || index} item={item} language={language} onOpen={id => {
+                  if (newsSearch.trim()) markSearchResult({ news_id: item.id, search_area: 'news_feed' });
+                  onOpenNews(id);
+                }} />)}
                 {!feedItems.length && <div className="newsdesk-feed-empty">{tx.emptyTab || tx.empty}</div>}
               </div>
             </main>

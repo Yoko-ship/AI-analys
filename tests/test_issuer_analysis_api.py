@@ -287,6 +287,25 @@ def test_company_summary_exposes_verified_history_when_requested_filing_is_absen
     assert body['ratios'] == [dated]
     assert body['deferred_full_report'] is False
 
+def test_pinned_report_reads_only_exact_current_publication_and_never_regenerates(client, monkeypatch):
+    from reporting import store
+    original = client.get('/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2').json()
+    def forbidden(*args, **kwargs):
+        pytest.fail('A versioned link must read its stored publication, not regenerate')
+    monkeypatch.setattr(subject, '_sector_ai_report', forbidden)
+    monkeypatch.setattr(subject.financials, 'financial_snapshot', forbidden)
+    path = f"/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&scope=separate&lang=ru&version={original['version']}"
+    for summary in ('', '&summary=true'):
+        response = client.get(path + summary)
+        assert response.status_code == 200
+        assert response.json()['version'] == original['version']
+        assert response.json()['headline'] == original['headline']
+    for old, new in [('FACT', 'BANK'), ('nsbu', 'ifrs'), ('separate', 'consolidated'), ('lang=ru', 'lang=uz'), ('2026Q2', '2026Q1')]:
+        assert client.get(path.replace(old, new)).status_code == 404
+    stored = store.get_run(original['version'])
+    store.record_report({**stored, 'version': 'a-new-publication'})
+    assert client.get(path).status_code == 409
+
 
 def test_bank_ai_report_summary_uses_bank_metrics_and_keeps_period(client):
     body = client.get(

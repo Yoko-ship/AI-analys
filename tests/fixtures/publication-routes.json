@@ -1,0 +1,11 @@
+[
+  {"url":"https://uzstock.uz/news/[update]?label=%D0%A2#section[1]","route":["/news/[update]",[["label","Т"]],"#section[1]"]},
+  {"url":"https://uzstock.uz/news/../company/HMKB#report","route":["/company/HMKB",[],"#report"]},
+  {"url":"https://uzstock.uz/news/%2e%2e/company/HMKB#report","route":["/company/HMKB",[],"#report"]},
+  {"url":"https://uzstock.uz/a//../b/./","route":["/a/b/",[],""]},
+  {"url":"https://uzstock.uz/a/%2e%2e","route":["/",[],""]},
+  {"url":"https://uzstock.uz/news/новость?scope=%D0%B0#отчёт","route":["/news/%D0%BD%D0%BE%D0%B2%D0%BE%D1%81%D1%82%D1%8C",[["scope","а"]],"#%D0%BE%D1%82%D1%87%D1%91%D1%82"]},
+  {"url":"https://uzstock.uz/uz/news/123?x=1&x=2&word=hello+world&utm_source=telegram","route":["/uz/news/123",[["word","hello world"],["x","1"],["x","2"]],""]},
+  {"url":"https://uzstock.uz/company/HMKB?report=ai&standard=ifrs&scope=separate&version=v2#report","route":["/company/HMKB",[["report","ai"],["scope","separate"],["standard","ifrs"],["version","v2"]],"#report"]},
+  {"url":"https://uzstock.uz/news/a%2Fb?version=v3&version=v2#part{a}|^","route":["/news/a%2Fb",[["version","v3"],["version","v2"]],"#part{a}|^"]}
+]

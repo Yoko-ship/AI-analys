@@ -30,10 +30,12 @@ import server.auth.limits as auth_limits
 from server.auth.access import _require_user
 import web_analytics
 from web_auth import web_auth_store
+from product_events_api import router as product_events_router
 
 logger = logging.getLogger(__name__)
 
 public_router = APIRouter()
+public_router.include_router(product_events_router)
 admin_router = APIRouter()
 
 _TRACK_MAX_BYTES = 4096

@@ -24,7 +24,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core gosu nodejs npm tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core ffmpeg gosu nodejs npm tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus \
     && groupadd --system appuser \
     && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser \
     && rm -rf /var/lib/apt/lists/*
@@ -45,6 +45,7 @@ RUN pip install --upgrade pip \
 
 COPY . /app
 COPY --from=frontend-builder /app/web/dist /app/web/dist
+COPY --from=frontend-builder /app/frontend/src/assets/landing/Manrope.ttf /app/marketing/assets/Manrope.ttf
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Frontend sources are build inputs, not runtime files: the compiled bundle already

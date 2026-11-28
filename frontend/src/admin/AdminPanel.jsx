@@ -2,7 +2,7 @@ import { MarketingSection } from "./MarketingSection.jsx";
 import { ProductAnalyticsSection } from "./ProductAnalyticsSection.jsx";
 import { Icon, IconSprite } from "./icons.jsx";
 import "./admin.css";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { lang3, SECTIONS, SYSTEM_SECTIONS, ADMIN_SECTION_KEYS } from "./adminModel.js";
 import { Skeleton } from "./AdminWidgets.jsx";
 import { FeedbackSection } from "./FeedbackSection.jsx";
@@ -16,6 +16,7 @@ import { AudienceSection } from "./AudienceSection.jsx";
 import { ProductOverviewSection } from "./ProductOverviewSection.jsx";
 import { useAdminData } from "./useAdminData.js";
 import { TerminalAdmin } from "./TerminalAdmin.jsx";
+const AiMarketingWorkspace = lazy(() => import("./marketing/MarketingWorkspace.jsx"));
 export default function AdminPanel({
   apiFetch,
   language = "ru",
@@ -112,6 +113,7 @@ export default function AdminPanel({
   // The rule book is public and cacheable; a failure there must not blank the page.
 
   const SECTION_LEDE = {
+    'ai-marketing': t("Цель, команда, проверенные материалы и разрешения на выпуск.", "Maqsad, jamoa, tekshirilgan materiallar va nashr ruxsatlari.", "Goals, team workflows, verified content and publication permissions."),
     overview: t("Сколько людей открыло сайт сегодня, живёт ли аудитория и работает ли продукт — прежде чем смотреть на таблицы.", "Bugun saytni nechta odam ochgani va mahsulot ishlayotgani.", "How many people opened the site today, whether the audience is alive and the product is used — before the plumbing."),
     marketing: t("Готовьте публикации и смотрите, что приводит читателей на UZStock.", "Postlar tayyorlang va UZStock’ga o‘quvchilarni nima olib kelayotganini kuzating.", "Prepare posts and see what brings readers to UZStock."),
     product: t("Какие источники приводят читателей, какие бумаги интересуют их и какие функции они используют.", "O‘quvchilar qayerdan keladi, qaysi qog‘ozlar va funksiyalarga qiziqadi.", "Which sources bring readers, which securities attract them, and which features they use."),
@@ -248,6 +250,7 @@ export default function AdminPanel({
     updateFeedbackStatus={updateFeedbackStatus}
   />;
   const bodyBySection = {
+    'ai-marketing': <Suspense fallback={<Skeleton rows={4} />}><AiMarketingWorkspace apiFetch={apiFetch} /></Suspense>,
     terminal: <TerminalAdmin apiFetch={apiFetch} language={language} />,
     overview: overviewBody,
     marketing: <MarketingSection apiFetch={apiFetch} language={language} t={t} />,

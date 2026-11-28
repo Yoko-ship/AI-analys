@@ -19,6 +19,7 @@ import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { formatMarketChange, formatMarketNumber } from "../../shared/format.jsx";
 import { AdvancedChartRail, AdvancedCompareBar } from "./CompareRail.jsx";
 import LwCanvas from "../../charts/LwCanvas.jsx";
+import { useProductObserver } from '../../lib/useProductObservation.js';
 import { patternName } from "../../lib/patterns.js";
 import { TechnicalBacktestCard } from "./TechnicalBacktest.jsx";
 
@@ -39,6 +40,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                          onUpgrade, onBack, onOpenCompany, onOpenChart, initial }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const up = String(ticker || "").toUpperCase();
+  const observeChart = useProductObserver({ kind: 'chart_open', ticker: up, language: lang });
 
   // ── State the URL carries, so an advanced chart can be linked to ──────────
   const [range, setRange] = React.useState(initial?.range || "1y");
@@ -1089,7 +1091,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 </div>
               )}
 
-              <LwCanvas spec={spec} height={canvasH} lang={lang} crosshair={cursorOn} pan={!drawMode}
+              <LwCanvas spec={spec} height={canvasH} lang={lang} crosshair={cursorOn} pan={!drawMode} onReady={observeChart}
                 viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
                 paneTitles={synthetic ? null : [volumeTitle(changeBase, lang)]}
                 onHover={setHover} onClick={onChartClick}

@@ -1,6 +1,16 @@
 # Deploy
 
-## 1. Prepare server
+Production uses the CI release workflow: build and smoke-test one image, publish
+to GHCR, then pull it by immutable digest on uzstock.uz. Inspect the active
+application directory and service manager before release. The checkout and image
+revision label must match the tested commit; never rebuild on the production
+server. SSH connection details belong only in the private `.env` file.
+
+Sections 1–3 below describe an independent development/rehearsal Compose stack.
+They are not the production release procedure. Marketing-specific pause, backup
+and rollback steps are in [the operations guide](docs/marketing-operations.md#release-rollback-and-host-recovery).
+
+## 1. Prepare a development or rehearsal host
 
 Install Docker and Docker Compose plugin on the VPS.
 
@@ -22,7 +32,7 @@ ANTHROPIC_API_KEY=...
 FEEDBACK_USERNAME=@your_username
 ```
 
-## 3. Start the server stack
+## 3. Start the development or rehearsal stack
 
 ```bash
 docker compose up -d --build

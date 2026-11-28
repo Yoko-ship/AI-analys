@@ -29,6 +29,9 @@ def initialize(connection_factory) -> None:
         )
         for statement in (
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE",
+            # Legacy accounts have no dated flow evidence; never backfill from creation/login.
+            "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS registration_started_at TIMESTAMPTZ",
+            "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS registration_completed_at TIMESTAMPTZ",
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS preferences JSONB NOT NULL DEFAULT '{}'::jsonb",
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE",
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT",

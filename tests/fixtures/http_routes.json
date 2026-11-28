@@ -5376,5 +5376,1689 @@
     "dependencies": [
       "_admin_panel_gate"
     ]
+  },
+  {
+    "path": "/api/track/actions",
+    "methods": [
+      "POST"
+    ],
+    "name": "receive",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/ai-marketing/workspace",
+    "methods": [
+      "GET"
+    ],
+    "name": "workspace",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/recovery/complete",
+    "methods": [
+      "POST"
+    ],
+    "name": "complete_recovery",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/history/{kind}/{record_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "history",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/editorial-rules/{rule_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_editorial_rule",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/incidents/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "scan_incidents",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/incidents/{incident_id}/correction",
+    "methods": [
+      "POST"
+    ],
+    "name": "prepare_correction",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/incidents/{incident_id}/dismiss",
+    "methods": [
+      "POST"
+    ],
+    "name": "dismiss_incident",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/editorial-experiments",
+    "methods": [
+      "POST"
+    ],
+    "name": "register_editorial_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/editorial-experiments/{experiment_id}/evaluate",
+    "methods": [
+      "POST"
+    ],
+    "name": "evaluate_editorial_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/editorial-experiments/{experiment_id}/decide",
+    "methods": [
+      "POST"
+    ],
+    "name": "decide_editorial_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/experiments",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/experiments/{experiment_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/experiments/{experiment_id}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/experiments/{experiment_id}/revoke",
+    "methods": [
+      "POST"
+    ],
+    "name": "revoke_experiment",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/experiments/{experiment_id}/action",
+    "methods": [
+      "POST"
+    ],
+    "name": "request_paid_action",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}/probe",
+    "methods": [
+      "POST"
+    ],
+    "name": "probe_account",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}/linkedin/start",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_linkedin",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/oauth/linkedin/finish",
+    "methods": [
+      "POST"
+    ],
+    "name": "finish_linkedin",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}/linkedin/disconnect",
+    "methods": [
+      "POST"
+    ],
+    "name": "disconnect_linkedin",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}/meta/start",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_meta",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/oauth/meta/finish",
+    "methods": [
+      "POST"
+    ],
+    "name": "finish_meta",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}/meta/select",
+    "methods": [
+      "POST"
+    ],
+    "name": "select_meta",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}/meta/disconnect",
+    "methods": [
+      "POST"
+    ],
+    "name": "disconnect_meta",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/channels/telegram/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "name": "reconcile_telegram",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/deliveries/{delivery_id}/confirm-match",
+    "methods": [
+      "POST"
+    ],
+    "name": "confirm_publication_match",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/deliveries/{delivery_id}/confirm-visible",
+    "methods": [
+      "POST"
+    ],
+    "name": "confirm_publication_visibility",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/publication-preview",
+    "methods": [
+      "GET"
+    ],
+    "name": "publication_preview",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/goal",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_goal",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/goal/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_goal",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/strategies",
+    "methods": [
+      "POST"
+    ],
+    "name": "propose_strategy",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/strategies/{strategy_id}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_strategy",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/strategies/{strategy_id}/work",
+    "methods": [
+      "POST"
+    ],
+    "name": "activate_plan",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/plans/{run_id}/pause",
+    "methods": [
+      "POST"
+    ],
+    "name": "pause_plan",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/plan-steps/{step_id}/start",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_plan_step",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/plan-steps/{step_id}/prepare",
+    "methods": [
+      "POST"
+    ],
+    "name": "prepare_plan_step",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/plan-steps/{step_id}/cancel-preparation",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_plan_preparation",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/plan-steps/{step_id}/owner-result",
+    "methods": [
+      "POST"
+    ],
+    "name": "record_owner_step",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/plan-steps/{step_id}/review-drafts",
+    "methods": [
+      "POST"
+    ],
+    "name": "review_plan_drafts",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/accounts/{account_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_account",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/evidence/{evidence_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_evidence",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/sources/{source_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_source",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/trends/{trend_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_trend",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/sources/{source_id}/permission",
+    "methods": [
+      "POST"
+    ],
+    "name": "source_permission",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/sources/{source_id}/import",
+    "methods": [
+      "POST"
+    ],
+    "name": "import_source",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/evidence/{evidence_id}/verify",
+    "methods": [
+      "POST"
+    ],
+    "name": "verify_evidence",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "revise_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/check",
+    "methods": [
+      "POST"
+    ],
+    "name": "check_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/release-draft",
+    "methods": [
+      "POST"
+    ],
+    "name": "release_draft",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/cancel",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/schedule",
+    "methods": [
+      "POST"
+    ],
+    "name": "schedule_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/pause",
+    "methods": [
+      "PUT"
+    ],
+    "name": "pause",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/tasks",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_task",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/tasks/{task_id}/cancel",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_task",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/tasks/{task_id}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry_task",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/drafts/{variant_id}/select",
+    "methods": [
+      "POST"
+    ],
+    "name": "select_variant",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/render",
+    "methods": [
+      "POST"
+    ],
+    "name": "render_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/renders/{render_id}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry_render",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/assets/{asset_id}/file",
+    "methods": [
+      "GET"
+    ],
+    "name": "asset_file",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/assets/{asset_id}/data",
+    "methods": [
+      "GET"
+    ],
+    "name": "asset_data",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/candidates/{candidate_id}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_candidate",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/founder-facts/{fact_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_founder_fact",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/founder-facts/{fact_id}/revoke",
+    "methods": [
+      "POST"
+    ],
+    "name": "revoke_founder_fact",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/website",
+    "methods": [
+      "PUT"
+    ],
+    "name": "configure_website",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/website/sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "sync_website",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/settings",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_report_settings",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/import",
+    "methods": [
+      "POST"
+    ],
+    "name": "import_report_events",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/calculate",
+    "methods": [
+      "POST"
+    ],
+    "name": "calculate_report",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/snapshots",
+    "methods": [
+      "POST"
+    ],
+    "name": "freeze_report",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/snapshots/{snapshot_id}/recompute",
+    "methods": [
+      "POST"
+    ],
+    "name": "recompute_report",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/compare",
+    "methods": [
+      "POST"
+    ],
+    "name": "compare_reports",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/review",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_report_review",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/analysis",
+    "methods": [
+      "POST"
+    ],
+    "name": "request_report_analysis",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/ai-marketing/reports/snapshots/{snapshot_id}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_report",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/marketing/media/{ticket}",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "fetch_media",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/track/actions",
+    "methods": [
+      "POST"
+    ],
+    "name": "receive__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/workspace",
+    "methods": [
+      "GET"
+    ],
+    "name": "workspace__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/recovery/complete",
+    "methods": [
+      "POST"
+    ],
+    "name": "complete_recovery__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/history/{kind}/{record_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "history__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/editorial-rules/{rule_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_editorial_rule__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/incidents/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "scan_incidents__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/incidents/{incident_id}/correction",
+    "methods": [
+      "POST"
+    ],
+    "name": "prepare_correction__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/incidents/{incident_id}/dismiss",
+    "methods": [
+      "POST"
+    ],
+    "name": "dismiss_incident__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/editorial-experiments",
+    "methods": [
+      "POST"
+    ],
+    "name": "register_editorial_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/editorial-experiments/{experiment_id}/evaluate",
+    "methods": [
+      "POST"
+    ],
+    "name": "evaluate_editorial_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/editorial-experiments/{experiment_id}/decide",
+    "methods": [
+      "POST"
+    ],
+    "name": "decide_editorial_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/experiments",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/experiments/{experiment_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/experiments/{experiment_id}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/experiments/{experiment_id}/revoke",
+    "methods": [
+      "POST"
+    ],
+    "name": "revoke_experiment__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/experiments/{experiment_id}/action",
+    "methods": [
+      "POST"
+    ],
+    "name": "request_paid_action__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}/probe",
+    "methods": [
+      "POST"
+    ],
+    "name": "probe_account__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}/linkedin/start",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_linkedin__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/oauth/linkedin/finish",
+    "methods": [
+      "POST"
+    ],
+    "name": "finish_linkedin__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}/linkedin/disconnect",
+    "methods": [
+      "POST"
+    ],
+    "name": "disconnect_linkedin__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}/meta/start",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_meta__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/oauth/meta/finish",
+    "methods": [
+      "POST"
+    ],
+    "name": "finish_meta__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}/meta/select",
+    "methods": [
+      "POST"
+    ],
+    "name": "select_meta__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}/meta/disconnect",
+    "methods": [
+      "POST"
+    ],
+    "name": "disconnect_meta__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/channels/telegram/reconcile",
+    "methods": [
+      "POST"
+    ],
+    "name": "reconcile_telegram__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/deliveries/{delivery_id}/confirm-match",
+    "methods": [
+      "POST"
+    ],
+    "name": "confirm_publication_match__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/deliveries/{delivery_id}/confirm-visible",
+    "methods": [
+      "POST"
+    ],
+    "name": "confirm_publication_visibility__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/publication-preview",
+    "methods": [
+      "GET"
+    ],
+    "name": "publication_preview__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/goal",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_goal__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/goal/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_goal__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/strategies",
+    "methods": [
+      "POST"
+    ],
+    "name": "propose_strategy__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/strategies/{strategy_id}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_strategy__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/strategies/{strategy_id}/work",
+    "methods": [
+      "POST"
+    ],
+    "name": "activate_plan__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/plans/{run_id}/pause",
+    "methods": [
+      "POST"
+    ],
+    "name": "pause_plan__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/plan-steps/{step_id}/start",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_plan_step__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/plan-steps/{step_id}/prepare",
+    "methods": [
+      "POST"
+    ],
+    "name": "prepare_plan_step__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/plan-steps/{step_id}/cancel-preparation",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_plan_preparation__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/plan-steps/{step_id}/owner-result",
+    "methods": [
+      "POST"
+    ],
+    "name": "record_owner_step__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/plan-steps/{step_id}/review-drafts",
+    "methods": [
+      "POST"
+    ],
+    "name": "review_plan_drafts__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/accounts/{account_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_account__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/evidence/{evidence_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_evidence__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/sources/{source_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_source__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/trends/{trend_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_trend__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/sources/{source_id}/permission",
+    "methods": [
+      "POST"
+    ],
+    "name": "source_permission__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/sources/{source_id}/import",
+    "methods": [
+      "POST"
+    ],
+    "name": "import_source__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/evidence/{evidence_id}/verify",
+    "methods": [
+      "POST"
+    ],
+    "name": "verify_evidence__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "revise_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/check",
+    "methods": [
+      "POST"
+    ],
+    "name": "check_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "approve_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/release-draft",
+    "methods": [
+      "POST"
+    ],
+    "name": "release_draft__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/cancel",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/schedule",
+    "methods": [
+      "POST"
+    ],
+    "name": "schedule_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/pause",
+    "methods": [
+      "PUT"
+    ],
+    "name": "pause__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/tasks",
+    "methods": [
+      "POST"
+    ],
+    "name": "start_task__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/tasks/{task_id}/cancel",
+    "methods": [
+      "POST"
+    ],
+    "name": "cancel_task__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/tasks/{task_id}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry_task__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/drafts/{variant_id}/select",
+    "methods": [
+      "POST"
+    ],
+    "name": "select_variant__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/render",
+    "methods": [
+      "POST"
+    ],
+    "name": "render_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/renders/{render_id}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry_render__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/assets/{asset_id}/file",
+    "methods": [
+      "GET"
+    ],
+    "name": "asset_file__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/assets/{asset_id}/data",
+    "methods": [
+      "GET"
+    ],
+    "name": "asset_data__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/candidates/{candidate_id}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_candidate__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/founder-facts/{fact_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_founder_fact__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/founder-facts/{fact_id}/revoke",
+    "methods": [
+      "POST"
+    ],
+    "name": "revoke_founder_fact__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/website",
+    "methods": [
+      "PUT"
+    ],
+    "name": "configure_website__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/website/sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "sync_website__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/settings",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_report_settings__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/import",
+    "methods": [
+      "POST"
+    ],
+    "name": "import_report_events__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/calculate",
+    "methods": [
+      "POST"
+    ],
+    "name": "calculate_report__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/snapshots",
+    "methods": [
+      "POST"
+    ],
+    "name": "freeze_report__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/snapshots/{snapshot_id}/recompute",
+    "methods": [
+      "POST"
+    ],
+    "name": "recompute_report__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/compare",
+    "methods": [
+      "POST"
+    ],
+    "name": "compare_reports__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/review",
+    "methods": [
+      "PUT"
+    ],
+    "name": "save_report_review__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/analysis",
+    "methods": [
+      "POST"
+    ],
+    "name": "request_report_analysis__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/ai-marketing/reports/snapshots/{snapshot_id}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_report__v2",
+    "dependencies": [
+      "_control_gate",
+      "owner_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/marketing/media/{ticket}",
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "name": "fetch_media__v2",
+    "dependencies": []
   }
 ]

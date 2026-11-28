@@ -2,6 +2,52 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
 const REPORT = JSON.parse(readFileSync(new URL("../tests/fixtures/sector_ui_report.json", import.meta.url), "utf8"));
+
+for (const width of [1440, 390]) test(`published report link preserves IFRS scope language period and version at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await api(page);
+  const requested = [];
+  const linked = { ...PUBLIC_REPORT, standard: 'ifrs', scope: 'consolidated', language: 'uz', version: 'published-ifrs-uz', period: '2026Q2' };
+  await page.route('**/api/v1/issuers/*/ai-report**', route => {
+    const params = new URL(route.request().url()).searchParams;
+    requested.push(Object.fromEntries(params));
+    return route.fulfill({ json: params.get('summary') === 'true' ? { ...linked, deferred_full_report: true } : linked });
+  });
+  const query = 'report=ai&report_standard=ifrs&report_scope=consolidated&report_period=2026Q2&report_lang=uz&report_version=published-ifrs-uz';
+  await page.goto('/uz/company/UZMK?' + query);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  expect(requested).toHaveLength(2);
+  for (const item of requested) expect(item).toMatchObject({ standard: 'ifrs', scope: 'consolidated', period: '2026Q2', lang: 'uz', version: 'published-ifrs-uz' });
+  await dialog.getByRole('button', { name: 'Hisobotni ulashish' }).click();
+  const link = await dialog.getByRole('link', { name: /Telegram/ }).getAttribute('href');
+  const shared = new URL(new URL(link).searchParams.get('url'));
+  expect(shared.pathname).toBe('/uz/company/UZMK');
+  expect(Object.fromEntries(shared.searchParams)).toEqual(Object.fromEntries(new URLSearchParams(query)));
+  await page.screenshot({ path: info.outputPath(`pinned-report-${width}.png`) });
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByTestId('company-insight-card').getByRole('button').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+for (const width of [1440, 390]) test(`a replaced pinned publication shows its failure without opening another report at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await api(page);
+  await page.route('**/api/v1/issuers/*/ai-report**', route => new URL(route.request().url()).searchParams.has('version')
+    ? route.fulfill({ status: 409, json: { detail: { code: 'REPORT_VERSION_CHANGED' } } })
+    : route.fulfill({ json: PUBLIC_REPORT }));
+  await page.goto('/company/UZMK?report=ai&report_standard=nsbu&report_scope=separate&report_period=2026Q2&report_lang=ru&report_version=old');
+  await expect(page.getByTestId('company-insight-card')).toContainText('Опубликованный разбор изменился');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath(`report-version-changed-${width}.png`), fullPage: true });
+  await page.getByTestId('company-insight-card').getByRole('link', { name: 'Открыть страницу компании' }).click();
+  await expect(page).toHaveURL(/\/company\/UZMK$/);
+  await page.getByTestId('company-insight-card').getByRole('button', { name: 'Открыть полный анализ' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
 const PUBLIC_REPORT = {
   ...REPORT,
   ratios: (REPORT.ratios || []).filter((item) => !["current_ratio", "quick_ratio"].includes(item.metric_code)),
