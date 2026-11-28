@@ -538,6 +538,12 @@ and click **Check connection**. The probe checks bot identity, channel identity
 and actual posting rights through the [Telegram Bot API](https://core.telegram.org/bots/api).
 Changing the token or recipient invalidates readiness and requires a new probe.
 
+For production releases, set `MARKETING_TELEGRAM_BOT_TOKEN` in the protected
+GitHub environment `uzstock-production`. Deployment transfers it over SSH stdin
+to the private server `.env` before replacing the web container, then verifies
+the bot identity from that running container without sending a message. An absent
+GitHub secret leaves the existing server setting unchanged.
+
 The adapter sends text, images, MP4 video and 2–10-item albums. Channel stories
 are unavailable. **Text for sending** shows the exact outgoing copy, including
 the direct UZStock link and original source links; final checks include their

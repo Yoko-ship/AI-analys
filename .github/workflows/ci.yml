@@ -558,6 +558,29 @@ jobs:
           PY
           REMOTE
 
+      - name: Synchronize marketing Telegram credential
+        env:
+          MARKETING_TELEGRAM_BOT_TOKEN: ${{ secrets.MARKETING_TELEGRAM_BOT_TOKEN }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$MARKETING_TELEGRAM_BOT_TOKEN" ]; then
+            echo "Marketing Telegram secret is not configured; preserving the server setting."
+            exit 0
+          fi
+          remote_command="$(python3 - <<'PY'
+          from pathlib import Path
+          import shlex
+
+          script = Path('scripts/configure_marketing_telegram.py').read_text()
+          print('python3 -c ' + shlex.quote(script) + ' /root/uzstock/app/.env')
+          PY
+          )"
+          printf '%s' "$MARKETING_TELEGRAM_BOT_TOKEN" | \
+            ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+              -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "$remote_command"
+
       - name: Synchronize intraday collector credentials
         # The collection credential is a deploy secret, never source code.  The
         # host uses it only for the collector's authenticated write endpoints.
@@ -1447,6 +1470,32 @@ jobs:
             docker exec uzstock-web python -m collection_ops.verify --since "$monitor_check_started" --exercise bank-fx
           fi
           REMOTE
+
+      - name: Verify marketing Telegram identity in the running service
+        env:
+          MARKETING_TELEGRAM_BOT_TOKEN: ${{ secrets.MARKETING_TELEGRAM_BOT_TOKEN }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$MARKETING_TELEGRAM_BOT_TOKEN" ]; then
+            exit 0
+          fi
+          expected_bot_id="${MARKETING_TELEGRAM_BOT_TOKEN%%:*}"
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            "docker exec -i uzstock-web python - '$expected_bot_id'" <<'PY'
+          import json
+          import os
+          import sys
+          from marketing.telegram_transport import Telegram
+
+          token = os.environ.get('MARKETING_TELEGRAM_BOT_TOKEN', '')
+          bot = Telegram(token)._request('getMe', read=True)
+          if str(bot.get('id')) != sys.argv[1] or bot.get('is_bot') is not True:
+              raise SystemExit('The running service has an unexpected Telegram bot identity')
+          print(json.dumps({'marketing_telegram_configured': True, 'bot_username': bot['username']}))
+          PY
 
   verify-production-market:
     # Production secrets live in this environment, which only the API
