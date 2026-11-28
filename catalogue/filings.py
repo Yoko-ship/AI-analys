@@ -42,6 +42,8 @@ def _upsert_report(
 
     object_id: str | None,
 
+    period_source: str = "reported",
+
 ) -> bool:
 
     """Insert or update a report row. Returns True if a new row was inserted."""
@@ -86,6 +88,12 @@ def _upsert_report(
 
     is_new = existing is None
 
+    # Publication grouping must not replace a report with a stated period.
+    if existing and period_source == "publication_date":
+        held = conn.execute("SELECT period_source FROM catalog_reports WHERE id=?", (existing["id"],)).fetchone()
+        if held["period_source"] != "publication_date":
+            return False
+
 
 
     conn.execute(
@@ -98,9 +106,9 @@ def _upsert_report(
 
              published_at, pdf_url, excel_url, excel_url_form1,
 
-             openinfo_report_id, object_id, synced_at)
+             openinfo_report_id, object_id, period_source, synced_at)
 
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
 
         -- Keep a link the new payload does not carry. The existing row must be
 
@@ -136,6 +144,8 @@ def _upsert_report(
 
             object_id           = COALESCE(excluded.object_id, catalog_reports.object_id),
 
+            period_source       = excluded.period_source,
+
             synced_at           = datetime('now')
 
         """,
@@ -146,7 +156,7 @@ def _upsert_report(
 
             published_at, pdf_url, excel_url, excel_url_form1,
 
-            openinfo_report_id, object_id,
+            openinfo_report_id, object_id, period_source,
 
         ),
 
@@ -369,7 +379,7 @@ def get_company_index(ticker: str) -> dict[str, Any]:
 
         f"""
 
-        SELECT report_form, period_type, year, quarter, title, published_at,
+        SELECT report_form, period_type, year, quarter, title, published_at, period_source,
 
                pdf_url, excel_url, excel_url_form1
 
@@ -452,6 +462,7 @@ def get_company_index(ticker: str) -> dict[str, Any]:
             "title": r["title"],
 
             "published_at": r["published_at"],
+            "period_source": r["period_source"],
 
             "has_pdf": bool(r["pdf_url"]),
 
@@ -751,7 +762,7 @@ def get_company_reports(ticker: str) -> list[dict[str, Any]]:
 
     rows = conn.execute(f"""
 
-        SELECT report_form, period_type, year, quarter, title, published_at,
+        SELECT report_form, period_type, year, quarter, title, published_at, period_source,
 
                pdf_url, excel_url, excel_url_form1, openinfo_report_id, object_id,
 

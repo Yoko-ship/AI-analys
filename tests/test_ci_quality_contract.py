@@ -18,6 +18,17 @@ def test_governance_backfill_runs_only_after_the_verified_production_release():
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_format_recovery_runs_only_on_requested_verified_release():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
+    job = workflow['jobs']['recover-document-formats']
+    assert job['needs'] == 'deploy-production' and job['environment'] == 'uzstock-production'
+    assert "refs/heads/API" in job['if'] and 'recover_document_formats' in job['if']
+    commands = '\n'.join(step.get('run', '') for step in job['steps'])
+    assert 'python -u -m financial_ingestion.recover_formats' in commands
+    assert 'org.opencontainers.image.revision' in commands and 'git rev-parse HEAD' in commands
+    assert 'publish' not in commands and 'docker build' not in commands
+
+
 def test_ci_exercises_postgres_and_both_supported_python_versions():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
     backend = workflow["jobs"]["backend"]

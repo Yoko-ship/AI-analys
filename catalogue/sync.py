@@ -291,6 +291,24 @@ def sync_company(
 
 
 
+    statement_periods = {}
+
+    def original_period(record_id, period_type, published_at):
+        key = (period_type, str(record_id))
+        if key not in statement_periods:
+            try:
+                statement_periods[key] = catalogue_sources.fetch_statement_period(
+                    session, org_id=org_id, org_type=org_type, period_type=period_type,
+                    record_id=record_id, published_at=published_at)
+            except Exception as exc:
+                errors.append(f"NSBU {period_type} {record_id}: period unresolved: {exc}")
+                statement_periods[key] = {"year": None, "quarter": None, "period_source": None}
+        result = statement_periods[key]
+        return result["year"], result["quarter"]
+
+    def period_source(record_id, period_type):
+        return statement_periods.get((period_type, str(record_id)), {}).get("period_source") or "reported"
+
     def _corrected_annuals(records: list[dict]) -> list[tuple[int, str, dict]]:
 
         """(fiscal year, pub_date, record), source mislabels repaired.
@@ -313,10 +331,6 @@ def sync_company(
 
             labeled = rec.get("reporting_year")
 
-            if not isinstance(labeled, int):
-
-                continue
-
             rid = str(rec.get("id") or "")
 
             if (str(org_id), rid) in catalogue_sources._ANNUAL_RECORD_EXCLUSIONS:
@@ -330,8 +344,12 @@ def sync_company(
             reviewed_year = resolve_annual_year(org_id, rid, labeled)
 
             yr = reviewed_year if reviewed_year is not None else catalogue_periods._effective_annual_year(labeled, pub)
+            if yr is None:
+                yr, _ = original_period(rid, "annual", pub)
+            if yr is None:
+                continue
 
-            if catalogue_periods._is_premature_annual_year(yr):
+            if catalogue_periods._is_premature_annual_year(yr) and period_source(rid, "annual") != "publication_date":
 
                 # openinfo lists a placeholder "annual" for the in-progress fiscal
 
@@ -398,6 +416,7 @@ def sync_company(
                 report_form="NSBU",
 
                 period_type="annual",
+                period_source=period_source(doc2.get("id"), "annual"),
 
                 year=yr,
 
@@ -425,7 +444,7 @@ def sync_company(
 
             annual_years.add(yr)
 
-            if rec.get("reporting_year") != yr:
+            if isinstance(rec.get("reporting_year"), int) and rec["reporting_year"] != yr:
 
                 moved_labels.add(int(rec["reporting_year"]))
 
@@ -519,13 +538,17 @@ def sync_company(
 
     form1_quarter_by_yq: dict[tuple[int, int], dict] = {}
 
+    def quarter_period(rec):
+        from nsbu_periods import stated_period
+        rid = str(rec.get("id") or "")
+        pub = (pdf_ids.get(rid) or {}).get("pub_date")
+        quarter = catalogue_periods._extract_quarter(str(rec.get("period") or ""))
+        period = stated_period(rec.get("reporting_year"), "quarter", quarter=quarter, published_at=pub)
+        return period if period[0] is not None else original_period(rid, "quarter", pub)
+
+
     for rec in form1_quarter:
-
-        period_str = str(rec.get("period") or "")
-
-        yr = rec.get("reporting_year")
-
-        q = catalogue_periods._extract_quarter(period_str)
+        yr, q = quarter_period(rec)
 
         if isinstance(yr, int) and q:
 
@@ -548,12 +571,7 @@ def sync_company(
     with conn:
 
         for rec in form2_quarter:
-
-            period_str = str(rec.get("period") or "")
-
-            yr = rec.get("reporting_year")
-
-            q = catalogue_periods._extract_quarter(period_str)
+            yr, q = quarter_period(rec)
 
             if not isinstance(yr, int) or not q:
 
@@ -578,6 +596,7 @@ def sync_company(
                 report_form="NSBU",
 
                 period_type="quarter",
+                period_source=period_source(doc2.get("id"), "quarter"),
 
                 year=yr,
 
@@ -641,16 +660,18 @@ def sync_company(
                 doc = catalogue_sources._build_report_document(rec)
 
                 yr = catalogue_periods._extract_year(rec)
-
-                if not isinstance(yr, int):
-
+                pt = str(doc.get("period_type") or "").lower()
+                if pt not in ("annual", "quarter"):
+                    errors.append(f"NSBU {doc.get('object_id')}: statement type is not stated")
                     continue
-
-                pt = "quarter"
                 props = rec.get("properties") or {}
-                q = catalogue_periods._extract_quarter(str(props.get("report_title") or ""))
-                # An undated quarter cannot go in the annual (quarter zero) slot.
-                if q is None:
+                q = catalogue_periods._extract_quarter(str(props.get("report_title") or "")) if pt == "quarter" else 0
+                from nsbu_periods import stated_period
+                yr, q = stated_period(yr, pt, quarter=q if pt == "quarter" else None,
+                                      published_at=doc.get("published_at"))
+                if yr is None:
+                    yr, q = original_period(doc.get("object_id"), pt, doc.get("published_at"))
+                if yr is None:
                     continue
 
                 new = catalogue_filings._upsert_report(
@@ -660,6 +681,7 @@ def sync_company(
                     report_form="NSBU",
 
                     period_type=pt,
+                    period_source=period_source(doc.get("object_id"), pt),
 
                     year=yr,
 

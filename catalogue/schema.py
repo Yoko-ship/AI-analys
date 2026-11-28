@@ -872,6 +872,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
     have_imports = set(dbx.columns(conn, "catalog_company_imports"))
 
+    if "period_source" not in dbx.columns(conn, "catalog_reports"):
+        conn.execute("ALTER TABLE catalog_reports ADD COLUMN period_source TEXT")
+
     if "catalog_visible" not in have_imports:
 
         conn.execute(

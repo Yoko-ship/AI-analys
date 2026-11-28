@@ -137,8 +137,6 @@ from catalogue.parsing import (
 )
 
 from catalogue.periods import (
-    _PUB_MONTH_QUARTER,
-    _QUARTER_END_MONTH,
     _STATED_QUARTER_LABELS,
     _completed_annual_is_recent,
     _effective_annual_year,

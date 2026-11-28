@@ -196,7 +196,7 @@ def test_discovery_cannot_publish_before_validation(catalog, monkeypatch):
         "accounting_id": "42", "pdf_id": "123", "pub_date": "2018-11-01",
         "excel_url": "https://openinfo.uz/42.xlsx", "title": "Q3",
     }])
-    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *a: {"ok": True})
+    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *a: {"ok": True, "reporting_date": "2018-09-30"})
     monkeypatch.setattr(catalogue_parsing, "compute_financial_ratios", lambda *a: {"source_values": {"revenue": 1}})
     monkeypatch.setattr(catalogue_refresh, "_register_parse", lambda *a: pytest.fail("discovery published provenance"))
     catalogue_financial_store.upsert_financials_cache("UZIR", "NSBU", 2018, 3, {"revenue": 100, "cash": 10})
@@ -248,7 +248,7 @@ def test_a_half_year_disclosed_over_a_year_late_keeps_its_stated_year():
     assert catalogue_periods._quarter_period_from_publication(quarter, pub, stated) == (2021, 2)
     # A stamp later than the publication (the filing day) cannot move the year on.
     later = datetime(2023, 1, 5).date()
-    assert catalogue_periods._quarter_period_from_publication(quarter, pub, later) == (2022, 2)
+    assert catalogue_periods._quarter_period_from_publication(quarter, pub, later) == (None, None)
     # A stamp on the quarter's last day is that quarter, not the year before
     # (UQEQ's 9M 2021 says 2021-09-30; its 2023 half-year, 2023-06-30).
     assert catalogue_periods._quarter_period_from_publication(
@@ -257,8 +257,63 @@ def test_a_half_year_disclosed_over_a_year_late_keeps_its_stated_year():
         2, datetime(2023, 8, 4), datetime(2023, 6, 30).date()) == (2023, 2)
     assert catalogue_periods._quarter_period_from_publication(
         4, datetime(2024, 3, 1), datetime(2023, 12, 31).date()) == (2023, 4)
-    # Without a stated date the publication rule is unchanged.
-    assert catalogue_periods._quarter_period_from_publication(quarter, pub) == (2022, 2)
+    assert catalogue_periods._quarter_period_from_publication(quarter, pub) == (None, None)
+
+
+def test_history_reads_structured_period_when_workbook_header_is_missing(catalog, monkeypatch):
+    from financial_ingestion import quarterly_comparative
+    monkeypatch.setattr(catalogue_history, "unified_quarterly_records", lambda *a: [{
+        "accounting_id": "11260", "pdf_id": "16009", "pub_date": "2022-09-14T10:58:39",
+        "excel_url": "https://openinfo.uz/11260.xlsx", "title": "Quarterly report", "org_type": "jsc",
+    }])
+    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *a: {"ok": True})
+    calls = []
+    def recover(ticker, org, record, *, publish=False):
+        calls.append((record["accounting_id"], publish))
+        return {"ticker": ticker, "year": 2021, "quarter": 2, "revenue": 111441498}
+    monkeypatch.setattr(quarterly_comparative, "discover_record", recover)
+    found = _HARVEST("UZIR", session=object(), pace=0, publish=False)
+    assert calls == [("11260", False)]
+    assert [(r["year"], r["quarter"]) for r in found["rows"]] == [(2021, 2)]
+
+
+def test_history_does_not_use_publication_to_hide_a_failed_source_read(catalog, monkeypatch):
+    from financial_ingestion import quarterly_comparative
+    monkeypatch.setattr(catalogue_history, "unified_quarterly_records", lambda *a: [{
+        "accounting_id": "11260", "pdf_id": "16009", "pub_date": "2022-09-14T10:58:39",
+        "excel_url": "https://openinfo.uz/11260.xlsx", "title": "Quarterly report", "org_type": "jsc",
+    }])
+    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *a: {"ok": True})
+    def unresolved(*args, **kwargs):
+        raise ValueError("Structured statement could not be read")
+    monkeypatch.setattr(quarterly_comparative, "discover_record", unresolved)
+    found = _HARVEST("UZIR", session=object(), pace=0, publish=False)
+    assert found["added"] == 0
+    assert found["errors"]
+    assert catalogue_filings.get_company_reports("UZIR") == []
+
+
+@pytest.mark.parametrize("reported_exists", [False, True])
+def test_history_uses_and_stores_publication_basis_after_reading_undated_original(catalog, monkeypatch, reported_exists):
+    import openinfo_reconcile as oi
+    if reported_exists:
+        report(year=2022, quarter=3, record="verified", published="2022-09-01")
+    monkeypatch.setattr(catalogue_history, "unified_quarterly_records", lambda *a: [{
+        "accounting_id": "11260", "pdf_id": "16009", "pub_date": "2022-09-14T10:58:39",
+        "excel_url": "https://openinfo.uz/11260.xlsx", "title": "Quarterly report", "org_type": "jsc",
+    }])
+    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", lambda *a: {"ok": True})
+    monkeypatch.setattr(oi, "fetch_detail", lambda *a: {"id": 11260, "org_type": "jsc", "reporting_year": None})
+    monkeypatch.setattr(oi, "extract_metrics", lambda *a: {"revenue": 111441498})
+    found = _HARVEST("UZIR", session=object(), pace=0, publish=False)
+    assert not found["errors"]
+    if reported_exists:
+        assert found["rows"] == []
+        assert catalogue_filings.get_company_reports("UZIR")[0]["openinfo_report_id"] == "verified"
+        return
+    assert [(r["year"], r["quarter"], r["period_source"]) for r in found["rows"]] == [(2022, 3, "publication_date")]
+    reports = catalogue_filings.get_company_reports("UZIR")
+    assert reports[0]["period_source"] == "publication_date"
 
 
 def test_a_stated_date_on_the_last_working_day_stays_in_its_quarter():

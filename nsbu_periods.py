@@ -1,11 +1,11 @@
-"""Reviewed period corrections for individually identified NSBU annual filings.
+"""Source-declared NSBU periods and reviewed corrections for identified filings.
 
 The ledger contains source metadata only. It neither changes financial values
 nor guesses a fiscal year from an issuer's ticker or a publication date.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from hashlib import sha256
 import json
@@ -16,10 +16,72 @@ from urllib.parse import urlparse
 
 
 _LEDGER_PATH = Path(__file__).with_name("reviewed_nsbu_periods.json")
+OPENINFO_QUARTERS = {"2": 1, "5": 2, "7": 3, "10": 4}
 _RECORD_KEYS = {
     "org_id", "record_id", "labeled_year", "fiscal_year", "reviewed_by",
     "reviewed_at", "evidence",
 }
+
+
+def stated_period(stamp, period_type, *, quarter=None, published_at=None, today=None):
+    """Read a declared period; dates of publication only validate its bounds.
+
+    A quarterly code supplies the quarter and the reporting stamp supplies its
+    year. Without a code, only an exact quarter-end identifies the quarter.
+    Annual dates must name a year-end; an explicit four-digit year also suffices.
+    """
+    text = str(stamp or "").strip()
+    year_only = bool(re.fullmatch(r"(?:19|20)\d{2}", text))
+    try:
+        stated = date(int(text), 12, 31) if year_only else date.fromisoformat(text[:10])
+    except (ValueError, TypeError):
+        return None, None
+    if not 1990 <= stated.year <= 2100:
+        return None, None
+    if period_type == "annual":
+        if (stated.month, stated.day) != (12, 31):
+            return None, None
+        quarter = 0
+    elif period_type in {"quarter", "quarterly"}:
+        if quarter is None:
+            ends = {(3, 31): 1, (6, 30): 2, (9, 30): 3, (12, 31): 4}
+            quarter = None if year_only else ends.get((stated.month, stated.day))
+        if type(quarter) is not int or quarter not in {1, 2, 3, 4}:
+            return None, None
+    else:
+        return None, None
+    month, day = ((3, 31), (6, 30), (9, 30), (12, 31))[(quarter or 4) - 1]
+    end = date(stated.year, month, day)
+    bound = today or date.today()
+    try:
+        published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")).date()
+    except (ValueError, TypeError):
+        published = None
+    if published:
+        bound = min(bound, published)
+    if end > bound or (not year_only and stated > bound):
+        return None, None
+    return stated.year, quarter
+
+
+def resolve_period(stamp, period_type, *, quarter=None, published_at=None, today=None):
+    """Prefer the stated period; date an undated report by its publication."""
+    year, resolved_quarter = stated_period(stamp, period_type, quarter=quarter,
+                                           published_at=published_at, today=today)
+    if year is not None:
+        return {"year": year, "quarter": resolved_quarter, "period_source": "reported"}
+    # Conflicting or malformed source dates require investigation, not fallback.
+    if str(stamp or "").strip():
+        return None
+    try:
+        published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")).date()
+    except (ValueError, TypeError):
+        return None
+    if published > (today or date.today()) or period_type not in {"annual", "quarter", "quarterly"}:
+        return None
+    return {"year": published.year,
+            "quarter": 0 if period_type == "annual" else (published.month - 1) // 3 + 1,
+            "period_source": "publication_date"}
 
 
 def _validate_ledger(payload: Any) -> dict[tuple[str, str], dict[str, Any]]:

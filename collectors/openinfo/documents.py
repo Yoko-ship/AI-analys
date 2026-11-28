@@ -8,6 +8,7 @@ import collectors.openinfo.settings as collectors_openinfo_settings
 import collectors.openinfo.transport as collectors_openinfo_transport
 import re
 import requests
+from nsbu_periods import OPENINFO_QUARTERS, stated_period, resolve_period
 
 
 def _build_report_document(report: dict[str, Any]) -> dict[str, Any]:
@@ -137,19 +138,31 @@ def fetch_accounting_bundle(
     return result
 
 
+def fetch_statement_period(session, *, org_id, org_type, period_type, record_id, published_at=None):
+    """Read period evidence from the original statement, bound to its issuer."""
+    org_type = "jsc" if org_type == "llc" else org_type
+    if org_type not in {"bank", "jsc", "insurance"} or not str(record_id).isdigit():
+        raise ValueError("Statement identity is missing for period lookup")
+    detail = collectors_openinfo_transport._json_get(session, f"/reports/{org_type}/{period_type}/{record_id}/")
+    if not isinstance(detail, dict) or str(detail.get("id")) != str(record_id):
+        raise ValueError("Statement identity does not match period lookup")
+    issuer = detail.get("organization")
+    issuer = issuer.get("id") if isinstance(issuer, dict) else issuer
+    if str(issuer) != str(org_id):
+        raise ValueError("Statement issuer does not match period lookup")
+    period = resolve_period(detail.get("reporting_year"), period_type,
+                          quarter=OPENINFO_QUARTERS.get(str(detail.get("quarter_no") or "")),
+                          published_at=published_at or detail.get("pub_date"))
+    if period is None:
+        raise ValueError("Statement has no explicit completed reporting period")
+    return period
+
+
 def fetch_available_periods(
     org_id: str,
     session: requests.Session | None = None,
 ) -> dict[str, Any]:
-    """Return which annual years and quarterly periods actually exist for this org on openinfo.
-
-    Each top-level record from the accounting-report endpoint has:
-      - reporting_year: int  (e.g. 2026)
-      - period: str          (e.g. "Q1 2026" for quarterly, or "2024" for annual)
-
-    Q4 is never published as a quarterly report — year-end is the annual report only.
-    IFRS/MSFO reports are annual-only PDF documents (no quarterly IFRS exists).
-    """
+    """Return source-declared periods and diagnostics for unresolved filings."""
     client = session or collectors_openinfo_transport._make_session()
     base = f"/reports/accounting-report/{org_id}/"
 
@@ -195,21 +208,11 @@ def fetch_available_periods(
             except ValueError:
                 continue
 
-    # The accounting endpoint cannot be paginated: ``page``, ``page_size`` and
-    # ``limit`` are ignored upstream.  Its ten-record response had therefore
-    # made the quarter selector start at 2023 even for issuers with reports back
-    # to 2016.  The unified feed contains the complete filing history.  It does
-    # not state a quarterly period, so infer it from the publication date only
-    # for records that are absent from the structured response.  A quarterly
-    # filing can only be published after the period closes; January--March is a
-    # late Q3 filing for the preceding year (there is no standalone Q4 filing).
-    publication_quarter = {
-        1: 3, 2: 3, 3: 3,
-        4: 1, 5: 1, 6: 1,
-        7: 2, 8: 2, 9: 2,
-        10: 3, 11: 3, 12: 3,
-    }
-    quarter_end_month = {1: 3, 2: 6, 3: 9}
+    # The structured response has only ten records. Recover older periods from
+    # explicit unified metadata or the original statement, never upload timing.
+    unresolved = []
+    publication_fallbacks = []
+    resolved_statements = {}
     for page in range(1, 6):
         try:
             payload = collectors_openinfo_transport._json_get(
@@ -224,16 +227,37 @@ def fetch_available_periods(
             properties = record.get("properties") or {}
             if str(record.get("report_type") or "") != "NSBU":
                 continue
-            if str(properties.get("report_type") or "").lower() != "quarter":
+            period_type = str(properties.get("report_type") or "").lower()
+            if period_type not in {"annual", "quarter"}:
                 continue
-            match = re.match(r"^(\d{4})-(\d{2})-", str(record.get("pub_date") or ""))
-            if not match:
+            title = str(properties.get("report_title") or "").strip()
+            match = re.fullmatch(r"Q([1-4])\s+(\d{4})", title, re.IGNORECASE)
+            year, quarter = stated_period(
+                match[2] if match else properties.get("reporting_year"), period_type,
+                quarter=int(match[1]) if match else None, published_at=record.get("pub_date"),
+            )
+            if year is None:
+                key = (properties.get("org_type"), period_type, str(record.get("object_id")))
+                if key not in resolved_statements:
+                    try:
+                        resolved_statements[key] = fetch_statement_period(
+                            client, org_id=org_id, org_type=key[0], period_type=period_type,
+                            record_id=record.get("object_id"), published_at=record.get("pub_date"),
+                        )
+                    except Exception as exc:
+                        resolved_statements[key] = str(exc)
+                result = resolved_statements[key]
+                if isinstance(result, str):
+                    unresolved.append({"id": record.get("id"), "reason": result})
+                    continue
+                year, quarter = result["year"], result["quarter"]
+                if result["period_source"] == "publication_date":
+                    publication_fallbacks.append({"id": record.get("id"), **result})
+            if period_type == "annual":
+                if year >= 2000 and year not in seen_annual:
+                    seen_annual.add(year)
+                    annual_years.append(year)
                 continue
-            published_year, published_month = (int(part) for part in match.groups())
-            quarter = publication_quarter.get(published_month)
-            if not quarter:
-                continue
-            year = published_year if published_month > quarter_end_month[quarter] else published_year - 1
             if year < 2000 or (year, quarter) in seen_q:
                 continue
             seen_q.add((year, quarter))
@@ -241,8 +265,11 @@ def fetch_available_periods(
         if len(results) < 200 or not (isinstance(payload, dict) and payload.get("next")):
             break
     quarterly.sort(key=lambda x: (x["year"], x["quarter"]), reverse=True)
+    annual_years.sort(reverse=True)
 
     return {
+        "publication_fallbacks": publication_fallbacks,
+        "unresolved": unresolved,
         "annual_years": annual_years,
         "quarterly": quarterly,
         "latest_annual_year": annual_years[0] if annual_years else None,

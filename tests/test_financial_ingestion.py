@@ -93,6 +93,44 @@ def test_discovery_and_processing_are_idempotent(setup):
         documents.discover(ticker="BRBNP", processor=extract.processor_version())
         assert worker.run(max_jobs=4, fetch=lambda _: setup[1])["processed"] == 0
     assert len(candidates()) == 1
+
+
+@pytest.mark.parametrize("published", [False, True])
+def test_parser_upgrade_reuses_identical_candidate_without_reopening_publication(setup, monkeypatch, published):
+    original_digest = store.digest
+    def legacy_digest(value):
+        if isinstance(value, list) and len(value) == 2 and isinstance(value[1], dict) and "classification" in value[1]:
+            return original_digest([value[0], extract.processor_version(), value[1]])
+        return original_digest(value)
+    with monkeypatch.context() as legacy:
+        legacy.setattr(store, "digest", legacy_digest)
+        stage(setup)
+    original = candidates()[0]
+    if published:
+        publication.publish("BRBN", actor="test-reviewer")
+    before = publication.series("BRBN")
+    monkeypatch.setattr(extract, "PARSER_VERSION", extract.PARSER_VERSION + "-upgrade")
+    documents.discover(ticker="BRBN", processor=extract.processor_version())
+    result = worker.run(max_jobs=4, fetch=lambda _: setup[1])
+    assert all(row["ok"] for row in result["outcomes"])
+    assert candidates() == [original]
+    assert store.status("23")["approved_unpublished"] == (0 if published else 1)
+    assert publication.series("BRBN") == before
+    from financial_ingestion.bulk_report import build_report
+    report = build_report(["BRBN"])
+    source = report["issuers"][0]["sources"][0]
+    assert source["no_current_candidates"] is False
+    assert source["candidates"][0]["current_processor"] is True
+    assert publication.publish("BRBN", actor="test-reviewer")["published"] == 1
+
+
+def test_reviewing_unchanged_payload_reuses_candidate(setup):
+    stage(setup)
+    original = candidates()[0]
+    reviewed = publication.propose(original["id"], json.loads(original["payload_json"]),
+                                   actor="reviewer", reason="Confirmed original extraction")
+    assert reviewed == original["id"]
+    assert candidates() == [original]
     assert store.status("23")["sources"] == 1
 
 
@@ -300,10 +338,17 @@ def test_partial_bank_ifrs_gap_requires_interest_not_industrial_revenue(setup):
     assert result["data_gaps"] == [{"period": "2024", "code": "MISSING_FINANCIAL_FIELDS", "fields": ["interest_income"]}]
 
 
-def test_pdf_publication_date_is_not_a_financial_year():
-    for form in ("MSFO", "Audition"):
+def test_publication_date_is_not_a_financial_year():
+    for form in ("NSBU", "MSFO", "Audition"):
         assert catalogue_periods._extract_year({"report_type": form, "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) is None
-    assert catalogue_periods._extract_year({"report_type": "NSBU", "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) == 2025
+
+
+@pytest.mark.parametrize("properties", [
+    {"report_title": "Financial statements 2024 and 2023"},
+    {"reporting_year": 2024, "year": 2023},
+])
+def test_ambiguous_year_metadata_requires_original_statement(properties):
+    assert catalogue_periods._extract_year({"properties": properties}) is None
 
 
 def test_unknown_period_source_upsert_does_not_duplicate_or_merge_pdfs(setup):

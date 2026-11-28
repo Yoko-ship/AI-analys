@@ -38,21 +38,17 @@ class TestPeriodFromStamp:
         assert orc.period_year_quarter("2025-12-31", "annual", today=TODAY,
                                        pub_date="2026-07-13T14:49:44") == (2025, 0)
 
-    def test_an_interim_stamped_with_its_filing_day_snaps_back(self) -> None:
-        # Qizilqumsement: reporting_year=2026-04-27 on a report filed 2026-05-13.
-        # Q2 had not ended, so the only quarter it can describe is Q1.
+    def test_filing_day_without_explicit_quarter_is_unresolved(self) -> None:
         assert orc.period_year_quarter("2026-04-27", "quarter", today=TODAY,
-                                       pub_date="2026-05-13T14:33:04") == (2026, 1)
+                                       pub_date="2026-05-13T14:33:04") == (None, None)
 
-    def test_an_annual_stamped_with_a_future_year_end_is_clamped(self) -> None:
-        # The "2026 Q4" on the board: openinfo signed the FY2025 annual
-        # 2026-12-31 and the old code mapped that to Q4 of the stamped year.
+    def test_future_annual_is_unresolved_without_document_evidence(self) -> None:
         assert orc.period_year_quarter("2026-12-31", "annual", today=TODAY,
-                                       pub_date="2026-06-29T16:08:22") == (2025, 0)
+                                       pub_date="2026-06-29T16:08:22") == (None, None)
 
-    def test_an_annual_stamped_with_its_filing_day_is_clamped(self) -> None:
+    def test_annual_filing_day_does_not_supply_a_fiscal_year(self) -> None:
         assert orc.period_year_quarter("2025-06-26", "annual", today=TODAY,
-                                       pub_date="2025-06-26T14:16:37") == (2024, 0)
+                                       pub_date="2025-06-26T14:16:37") == (None, None)
 
     def test_a_late_filed_annual_keeps_its_own_older_year(self) -> None:
         # Filing late is normal and says nothing about the period — only a stamp
@@ -64,17 +60,17 @@ class TestPeriodFromStamp:
         assert orc.period_year_quarter(None, "annual", today=TODAY) == (None, None)
         assert orc.period_year_quarter("", "quarter", today=TODAY) == (None, None)
 
-    def test_today_bounds_a_report_with_no_filing_date(self) -> None:
+    def test_future_annual_without_publication_is_unresolved(self) -> None:
         assert orc.period_year_quarter("2026-12-31", "annual", today=TODAY,
-                                       pub_date=None) == (2025, 0)
+                                       pub_date=None) == (None, None)
 
     @pytest.mark.parametrize(("stamp", "expected"), [
-        ("2026-01-15", (2026, 1)), ("2026-03-31", (2026, 1)),
-        ("2026-04-01", (2026, 2)), ("2026-06-30", (2026, 2)),
+        ("2026-01-15", (None, None)), ("2026-03-31", (2026, 1)),
+        ("2026-04-01", (None, None)), ("2026-06-30", (2026, 2)),
         ("2026-09-30", (2026, 3)), ("2026-12-31", (2026, 4)),
     ])
-    def test_an_interim_date_snaps_to_its_enclosing_quarter(self, stamp, expected) -> None:
-        # Bounded by a filing at the very end of the year so nothing is clamped.
+    def test_only_an_exact_quarter_end_identifies_an_unlabelled_quarter(self, stamp, expected) -> None:
+        # A year-end publication permits every completed quarter in this year.
         assert orc.period_year_quarter(stamp, "quarter", today=dt.date(2027, 6, 1),
                                        pub_date="2026-12-31T00:00:00") == expected
 
@@ -94,10 +90,10 @@ class TestPeriodFromQuarterNo:
                                        pub_date="2025-03-06T00:00:00",
                                        quarter_no="7") == (2024, 3)
 
-    def test_a_q4_filed_in_the_new_year_belongs_to_the_old_one(self) -> None:
+    def test_q4_stamp_in_new_year_does_not_guess_previous_year(self) -> None:
         assert orc.period_year_quarter("2021-02-02", "quarter", today=TODAY,
                                        pub_date="2021-02-02T00:00:00",
-                                       quarter_no="10") == (2020, 4)
+                                       quarter_no="10") == (None, None)
 
     @pytest.mark.parametrize(("quarter_no", "expected"), [
         ("2", (2026, 1)), ("5", (2026, 2)), (7, (2026, 3)), ("10", (2026, 4)),
@@ -107,10 +103,10 @@ class TestPeriodFromQuarterNo:
                                        pub_date="2027-01-20T00:00:00",
                                        quarter_no=quarter_no) == expected
 
-    def test_an_unknown_code_falls_back_to_the_stamp(self) -> None:
+    def test_unknown_code_and_non_period_end_are_unresolved(self) -> None:
         assert orc.period_year_quarter("2026-04-27", "quarter", today=TODAY,
                                        pub_date="2026-05-13T14:33:04",
-                                       quarter_no="99") == (2026, 1)
+                                       quarter_no="99") == (None, None)
 
     def test_an_annual_ignores_the_code(self) -> None:
         assert orc.period_year_quarter("2025-12-31", "annual", today=TODAY,
@@ -429,10 +425,12 @@ class TestTheSummerOverwrite:
         openinfo["add"](1, "annual", "2026-06-29T16:08:22", "2026-12-31", revenue=1_538.0)
         openinfo["add"](2, "quarter", "2026-05-13T14:33:04", "2026-04-27", revenue=275.0)
 
+        openinfo["details"][2]["quarter_no"] = "2"
+
         best, annual, meta = orc.select_reports("AAA", today=TODAY)
 
         assert (meta["year"], meta["quarter"]) == (2026, 1)
-        assert (annual["meta"]["year"], annual["meta"]["quarter"]) == (2025, 0)
+        assert annual is None
         assert best["metrics"]["revenue"] == 275.0
 
     def test_publication_date_only_breaks_ties_within_one_period(self, openinfo) -> None:
@@ -456,10 +454,8 @@ class TestTheSummerOverwrite:
         assert best["metrics"]["revenue"] == 5_530.0
 
     def test_older_filings_are_not_fetched_once_they_cannot_win(self, openinfo) -> None:
-        # The walk is newest-filed first and a filing cannot describe a period
-        # that ends after it — so everything below the best period in hand is
-        # skipped without a request. Without this, ranking by period would cost a
-        # detail fetch per filing per ticker on every collector run.
+        # An undated January filing can use Q1. Read it before skipping older
+        # candidates whose publication periods cannot improve either result.
         openinfo["add"](1, "annual", "2026-07-13T00:00:00", "2025-12-31")
         openinfo["add"](2, "quarter", "2026-04-23T00:00:00", "2026-03-31")
         openinfo["add"](3, "quarter", "2026-01-30T00:00:00", "2025-12-31")
@@ -467,16 +463,17 @@ class TestTheSummerOverwrite:
 
         orc.select_reports("AAA", today=TODAY)
 
-        assert openinfo["fetched"] == [1, 2]
+        assert openinfo["fetched"] == [1, 2, 3]
 
-    def test_a_report_with_no_readable_period_is_skipped(self, openinfo) -> None:
+    def test_a_report_without_period_uses_its_publication_quarter(self, openinfo) -> None:
         openinfo["add"](1, "quarter", "2026-07-20T00:00:00", "", revenue=999.0)
         openinfo["add"](2, "quarter", "2026-04-23T00:00:00", "2026-03-31", revenue=5_530.0)
 
         best, _annual, meta = orc.select_reports("AAA", today=TODAY)
 
-        assert (meta["year"], meta["quarter"]) == (2026, 1)
-        assert best["metrics"]["revenue"] == 5_530.0
+        assert (meta["year"], meta["quarter"]) == (2026, 3)
+        assert best["metrics"]["revenue"] == 999.0
+        assert meta["period_source"] == "publication_date"
 
     def test_no_candidates_is_reported_not_guessed(self, openinfo) -> None:
         best, annual, meta = orc.select_reports("AAA", today=TODAY)

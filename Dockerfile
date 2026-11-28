@@ -24,7 +24,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core ffmpeg gosu nodejs npm tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata fonts-dejavu-core fonts-liberation libreoffice-writer ffmpeg gosu nodejs npm tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus \
     && groupadd --system appuser \
     && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser \
     && rm -rf /var/lib/apt/lists/*

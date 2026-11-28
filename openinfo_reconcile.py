@@ -19,18 +19,16 @@ and applies the report-reading rules that the legacy path got wrong:
     (2/5/7/10 = Q1-Q4, the "Период квартала" of the Excel export) and names the
     quarter; reporting_year only places it in a year — issuers routinely stamp it
     with the filing day, which is how a half-year filed in October became Q3.
-    Without a known code the quarter falls back to reporting_year's own quarter.
+    Without a known code, only an exact quarter-end date identifies a quarter.
     The chosen report is the one covering the
     latest reporting PERIOD, not the one published last — publication date only
     breaks ties between versions of the same period (a restated or audited
     refiling). Filing order and period order come apart every summer: an issuer
     files Q1 in late April and then the *previous* year's annual in July, and
     "newest published" hands last year's figures to a row labelled this year.
-  * openinfo mis-stamps period-ends. A period cannot end after the report that
-    carries it was filed, so pub_date bounds it: an interim stamped with its own
-    filing day snaps back to the last quarter that had actually ended, and an
-    annual stamped with a current/future year-end (2026-12-31 filed mid-2026) is
-    clamped to the last fiscal year complete at filing. Both are logged.
+  * Explicit reporting periods take priority. If the original statement has no
+    reporting date, use its publication year and calendar quarter and label
+    that basis. Contradictory stated dates are not silently shifted.
   * Bind the issuer by organization id when openinfo's own ticker registry knows
     it (organizations.exchange_ticket_name), else by search + the report's
     organization_ticket_name (comma-separated), so ordinary / preferred siblings
@@ -754,19 +752,9 @@ def _has_data(metrics):
 
 
 def _period_ceiling(cand, today):
-    """The highest period rank a candidate published on this date could describe.
-
-    Nothing about the report is known yet — only its filing date and its form —
-    but a period cannot end after it was filed, so this bounds the candidate
-    without spending a detail fetch. Candidates are walked newest-filed first, so
-    the bound only falls as the walk goes on: once it drops to the best period
-    already in hand, no older filing of that form can beat it and the rest are
-    skipped unfetched.
-    """
+    """An undated report may use its publication year or quarter."""
     bound = _bound_date(cand["pub_date"], today)
-    if cand["period_type"] == "annual":
-        return period_rank(_last_complete_fiscal_year(bound), 0)
-    return period_rank(*_last_complete_quarter(bound))
+    return period_rank(bound.year, 0 if cand["period_type"] == "annual" else _quarter_of(bound))
 
 
 def select_reports(ticker, today=None, max_fetch=8):
@@ -844,17 +832,17 @@ def select_reports(ticker, today=None, max_fetch=8):
         metrics = extract_metrics(d)
         if not _has_data(metrics):
             continue
-        year, quarter = period_year_quarter(d.get("reporting_year"), c["period_type"],
-                                            today=today, pub_date=c["pub_date"],
-                                            quarter_no=d.get("quarter_no"))
-        if year is None:
-            log.warning("%s: report %s has no readable period (%r) — skipped",
+        from nsbu_periods import resolve_period
+        period = resolve_period(d.get("reporting_year"), c["period_type"], today=today,
+                                published_at=c["pub_date"], quarter=_QUARTER_NO.get(str(d.get("quarter_no") or "")))
+        if period is None:
+            log.warning("%s: report %s has no readable period (%r)",
                         ticker, c["object_id"], d.get("reporting_year"))
             continue
+        year, quarter = period["year"], period["quarter"]
         rank = period_rank(year, quarter)
         if rank > _period_ceiling(c, today):
-            # Cannot happen once period_year_quarter has clamped, and is a data
-            # error rather than a stale label if it ever does — never store it.
+            # Keep the storage boundary guarded against unfinished periods.
             log.warning("%s: report %s resolves to a future period %dQ%d — skipped",
                         ticker, c["object_id"], year, quarter)
             continue
@@ -866,6 +854,7 @@ def select_reports(ticker, today=None, max_fetch=8):
                 "org_type": c["org_type"],
                 "period_type": c["period_type"],
                 "reporting_year": d.get("reporting_year"),
+                "period_source": period["period_source"],
                 "pub_date": c["pub_date"],
                 "tickets": d.get("organization_ticket_name"),
                 "search": search,
@@ -907,8 +896,8 @@ _Q_END = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
 
 # openinfo's quarter_no on a quarterly filing -> the quarter it covers. Verified
 # against bank, jsc and insurance filings 2020-2026 and the Excel export's
-# "Период квартала" header; an unknown code falls back to the reporting_year stamp.
-_QUARTER_NO = {"2": 1, "5": 2, "7": 3, "10": 4}
+# "Период квартала" header; an unknown code requires an exact quarter-end stamp.
+from nsbu_periods import OPENINFO_QUARTERS as _QUARTER_NO
 
 
 def _quarter_of(d):
@@ -982,55 +971,11 @@ def period_end(year, quarter):
 
 def period_year_quarter(reporting_year, period_type, today=None, pub_date=None,
                         quarter_no=None):
-    """Map an openinfo reporting_year date + form type to the site's (year, quarter).
-
-    Annual -> quarter 0. Quarterly -> the quarter whose end the period-end date
-    falls in (Jan-Mar=1 ... Oct-Dec=4). Interim dates snap to the enclosing
-    quarter. Returns (year, quarter) or (None, None).
-
-    A period cannot end after the report carrying it was filed, and openinfo
-    mis-stamps ``reporting_year`` in both directions of that rule:
-
-      * interims stamped with their own filing day (reporting_year=2026-04-27 on a
-        report filed 2026-05-13) — snapped back to the last quarter fully ended by
-        the filing date, here Q1 2026;
-      * annuals stamped with a current or future year-end (2026-12-31 on a report
-        filed 2026-06-29) — clamped to the last fiscal year complete at filing,
-        here FY2025. This is the "2026 Q4" that reached the site: the old code
-        mapped such an annual to Q4 of the stamped year, which invented a period
-        that has not happened and outranked every real filing forever.
-
-    A stamp EARLIER than the bound is left alone — late filings are normal.
-
-    A quarterly filing's ``quarter_no`` names its quarter outright, and wins over
-    the stamp: Qizilqumsement filed its 2026 half-year (quarter_no 5) on
-    2026-10-09 stamped 2026-07-27, which the stamp alone reads as Q3. The year is
-    then the latest one in which that quarter had ended by the stamp (or the
-    filing day, whichever is earlier).
-    """
-    d = _parse_date(reporting_year)
-    if d is None:
-        return None, None
-    today = today or _dt.date.today()
-    bound = _bound_date(pub_date, today)
-    if period_type == "annual":
-        latest = _last_complete_fiscal_year(bound)
-        year = min(d.year, latest)
-        if year != d.year:
-            log.info("openinfo annual mis-stamped %s (filed %s) — reading it as FY%d",
-                     reporting_year, pub_date or "?", year)
-        return (year, 0) if year >= 1990 else (None, None)
-    q = _QUARTER_NO.get(str(quarter_no or "").strip())
-    if q:
-        asof = min(d, bound)
-        return (asof.year if _quarter_end(asof.year, q) <= asof else asof.year - 1), q
-    year, q = d.year, _quarter_of(d)
-    if _quarter_end(year, q) > bound:
-        snapped = _last_complete_quarter(bound)
-        log.info("openinfo interim mis-stamped %s (filed %s) — reading it as %dQ%d",
-                 reporting_year, pub_date or "?", *snapped)
-        return snapped
-    return year, q
+    """Read a stated period, or use publication timing when it is absent."""
+    from nsbu_periods import resolve_period
+    period = resolve_period(reporting_year, period_type, today=today, published_at=pub_date,
+                            quarter=_QUARTER_NO.get(str(quarter_no or "").strip()))
+    return (period["year"], period["quarter"]) if period else (None, None)
 
 
 PRIOR_KEYS = ("revenue", "gross_profit", "net_income", "operating_income", "operating_expenses")
@@ -1041,7 +986,8 @@ def _figures(ticker, metrics, meta):
     row = {"ticker": ticker, "year": meta["year"], "quarter": meta["quarter"],
            "period_months": period_months(meta["year"], meta["quarter"]),
            "is_ytd": bool(meta["quarter"]),
-           "org_type": metrics.get("org_type")}
+           "org_type": metrics.get("org_type"),
+           "period_source": meta.get("period_source", "reported")}
     for k in METRIC_KEYS:
         v = metrics.get(k)
         row[f"{k}_thousand"] = None if v is None else round(v, 2)
@@ -1093,7 +1039,7 @@ def reconcile_ticker(ticker, today=None):
     row["annual"] = _figures(ticker, annual["metrics"], annual["meta"]) if annual else None
     if annual:
         row["annual"]["_meta"] = {k: annual["meta"].get(k)
-                                  for k in ("period_type", "reporting_year", "pub_date", "object_id")}
+                                  for k in ("period_type", "reporting_year", "pub_date", "object_id", "period_source")}
     return row, meta
 
 
@@ -1145,7 +1091,7 @@ def reconcile_all(tickers, today=None, progress=None):
             if row is None:
                 errors[t] = meta.get("error", "unresolved")
                 continue
-            row["_meta"] = {k: meta.get(k) for k in ("org_type", "period_type", "reporting_year", "pub_date", "object_id")}
+            row["_meta"] = {k: meta.get(k) for k in ("org_type", "period_type", "reporting_year", "pub_date", "object_id", "period_source")}
             rows.append(row)
     finally:
         _REPORT_DETAILS.save()

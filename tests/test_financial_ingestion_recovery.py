@@ -14,15 +14,19 @@ from financial_ingestion import documents, extract, maintenance, publication, st
 from test_financial_ingestion import setup, stage, candidates
 
 
-def test_reviewed_release_verifies_and_preserves_existing_publication(setup, monkeypatch, tmp_path):
+@pytest.mark.parametrize("upgrade", [False, True])
+def test_reviewed_release_verifies_and_preserves_existing_publication(setup, monkeypatch, tmp_path, upgrade):
     from scripts.publish_reviewed_bank_ifrs import release
     monkeypatch.setenv("FINANCIAL_BACKUP_DIR", str(tmp_path / "backups"))
     stage(setup)
     publication.publish("BRBN", actor="initial-review")
     before = publication.series("BRBN")
+    if upgrade:
+        monkeypatch.setattr(extract, "PARSER_VERSION", extract.PARSER_VERSION + "-upgrade")
     result = release(fetch=lambda url: setup[1])
     assert result == {"verified_figures": 9, "periods": 1, "preserved_previous_values": True}
     assert publication.series("BRBN") == before
+    assert len(candidates()) == 1
 
 
 def test_reviewed_release_rejects_source_change_before_writes(setup, monkeypatch, tmp_path):

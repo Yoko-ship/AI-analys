@@ -29,9 +29,7 @@ def propose(candidate_id, payload, *, actor, reason):
         checks = validation.validate(payload, page_count=payload["page_count"])
         if not checks["valid"]:
             raise ValueError("Invalid reviewed proposal: " + ", ".join(checks["errors"]))
-        candidate = store.digest([old["version_id"], "reviewed-proposal-v1", payload])
-        c.execute("INSERT INTO ingest_candidates VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
-                  (candidate, old["version_id"], "reviewed-proposal-v1", store.encoded(payload), store.encoded(checks), store.now()))
+        candidate = store.record_candidate(c, old["version_id"], "reviewed-proposal-v1", payload, checks)
         store.event(c, candidate, "candidate.corrected", actor=actor, original=candidate_id, reason=reason)
         return candidate
 
@@ -278,10 +276,13 @@ def passport(ticker, period, field, *, scope=None):
     payload = row["payload"]
     figure, meta = payload["figures"][key], payload["classification"]
     source = payload["source"]
+    conversion = payload.get('extraction', {}).get('conversion')
+    rendered = ({'rendered_url': f"/api/company/{ticker}/financials/documents/{conversion['pdf_sha256']}",
+                 'conversion': conversion} if conversion else {})
     amount = Decimal(figure["raw_value"])
     return {"status": "SOURCED", "period": period, "field": field, "standard": "MSFO", "source_field": key,
             "value": float(Decimal(payload["normalized_uzs"][key]) / 1000),
-            "source": {**source, "snapshot_id": row["id"], "state": "published", "standard": "MSFO", "report_form": "MSFO",
+            "source": {**source, **rendered, "snapshot_id": row["id"], "state": "published", "standard": "MSFO", "report_form": "MSFO",
                        "perimeter": meta["scope"], "scope": meta["scope"], "period_type": "quarter" if "Q" in period else "annual", "period_year": meta["document_year"],
                        "period_start": meta["period_start"], "period_end": meta["period_end"], "period_basis": "cumulative_ytd" if "Q" in period else "annual",
                        "calculation": figure.get("calculation"), "components": figure.get("components"),

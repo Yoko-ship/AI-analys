@@ -7,6 +7,19 @@ import pytest
 import nsbu_periods as periods
 
 
+@pytest.mark.parametrize("kind,quarter", [("quarter", 3), ("annual", 0)])
+def test_missing_period_uses_publication_calendar_without_shifting(kind, quarter):
+    result = periods.resolve_period(None, kind, published_at="2022-09-14T10:58:39")
+    assert result == {"year": 2022, "quarter": quarter, "period_source": "publication_date"}
+
+
+def test_reported_period_wins_and_conflicts_are_not_missing_metadata():
+    assert periods.resolve_period("2021-07-29", "quarter", quarter=2,
+        published_at="2022-09-14") == {"year": 2021, "quarter": 2, "period_source": "reported"}
+    assert periods.resolve_period("2024-12-31", "annual", published_at="2023-05-01") is None
+    assert periods.resolve_period(None, "quarter", published_at="bad date") is None
+
+
 def ledger():
     return json.loads(periods._LEDGER_PATH.read_text(encoding="utf-8"))
 

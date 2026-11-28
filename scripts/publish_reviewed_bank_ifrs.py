@@ -83,7 +83,7 @@ def _release(*, fetch, scratch, allow_reviewed_corrections, tickers=None):
                 raise
         c = store.connect()
         current = c.execute('SELECT v.* FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version WHERE s.id=?', (source['id'],)).fetchone()
-        existing = c.execute('SELECT COUNT(*) FROM ingest_candidates WHERE version_id=? AND processor=?', (current['id'], processor)).fetchone()[0]
+        existing = len(store.candidates_for_processor(c, processor, version_id=current['id']))
         c.close()
         if current['sha'] != entry['sha256']:
             raise ValueError('Source changed since visual review')
@@ -100,10 +100,12 @@ def _release(*, fetch, scratch, allow_reviewed_corrections, tickers=None):
     selected = {}
     corrections = []
     for ticker in tickers:
+        org_id = str(catalogue_filings.get_company_index(ticker)['org_id'])
         c = store.connect()
-        rows = c.execute("SELECT x.* FROM ingest_candidates x JOIN ingest_versions v ON v.id=x.version_id JOIN ingest_sources s ON s.latest_version=v.id "
-                         "WHERE s.org_id=? AND x.processor=? AND EXISTS (SELECT 1 FROM ingest_reviews r WHERE r.candidate_id=x.id AND r.decision='APPROVED')",
-                         (str(catalogue_filings.get_company_index(ticker)['org_id']), processor)).fetchall()
+        current_versions = {r[0] for r in c.execute("SELECT latest_version FROM ingest_sources WHERE org_id=?",
+                           (org_id,))}
+        rows = [r for r in store.candidates_for_processor(c, processor, org_id=org_id)
+                if r['approved'] and r['version_id'] in current_versions]
         c.close()
         if len(rows) != sum(e['ticker'] == ticker for e in entries):
             raise ValueError('Approved candidate count mismatch: ' + ticker)
